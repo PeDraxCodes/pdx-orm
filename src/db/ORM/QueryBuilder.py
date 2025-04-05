@@ -1,0 +1,85 @@
+from typing import Any, Self
+
+
+class QueryBuilder:
+    def __init__(self):
+        self._query = []
+        self._params = []
+
+        self._has_from = False
+        self._has_where = False
+
+    def append(self, query: str | Self, params: list | Any = None) -> Self:
+        """
+        Appends a query to the current query.
+        """
+        if isinstance(query, QueryBuilder):
+            return self._append_self(query)
+
+        if params is None:
+            params = []
+        elif not isinstance(params, list):
+            params = [params]
+
+        self._query.append(query)
+        self._params.extend(params)
+
+        if "FROM" in query:
+            self._has_from = True
+
+        if "WHERE" in query:
+            self._has_where = True
+
+        return self
+
+    def appendWhereOrAnd(self, query: str, params: list | Any = None) -> Self:
+        """
+        Appends a WHERE or AND clause to the current query.
+        """
+        if not self._has_where:
+            query = "WHERE " + query
+        else:
+            query = "AND " + query
+
+        return self.append(query, params)
+
+    def __str__(self) -> str:
+        """
+        Returns the current query as a string.
+        """
+        query = " ".join(self._query)
+        for param in self._params:
+            query = query.replace("?", str(param), 1)
+        return query
+
+    def __repr__(self) -> str:
+        """
+        Returns the current query as a string.
+        """
+        return str(self)
+
+    def __add__(self, other: object) -> Self:
+        """
+        Concatenates two QueryBuilder objects.
+        """
+        if isinstance(other, QueryBuilder):
+            return self._append_self(other)
+        elif isinstance(other, str):
+            return self.append(other)
+        else:
+            raise TypeError("Unsupported type for addition: " + str(type(other)))
+
+    def _append_self(self, query: Self) -> Self:
+        """
+        Appends another QueryBuilder object to the current query.
+        """
+        self._query.extend(query._query)
+        self._params.extend(query._params)
+        return self
+
+    @property
+    def query(self) -> str:
+        """
+        Returns the current query as a string.
+        """
+        return " ".join(self._query)
