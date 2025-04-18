@@ -18,7 +18,7 @@ class QueryBuilder:
 
         if params is None:
             params = []
-        elif not isinstance(params, list):
+        elif not isinstance(params, list) and not isinstance(params, tuple):
             params = [params]
 
         self._query.append(query)
@@ -38,10 +38,27 @@ class QueryBuilder:
         """
         if not self._has_where:
             query = "WHERE " + query
+            self._has_where = True
         else:
             query = "AND " + query
 
         return self.append(query, params)
+
+    def appendIn(self, values: list[Any]) -> Self:
+        """
+        Appends an IN clause to the current query.
+        """
+        if not self._has_where:
+            raise ValueError("IN clause must be preceded by a WHERE clause")
+        if not values:
+            raise ValueError("IN clause cannot be empty")
+        if isinstance(values[0], tuple) or isinstance(values[0], list):
+            placeholders = ", ".join(["(" + ", ".join(["?"] * len(v)) + ")" for v in values])
+        else:
+            placeholders = ", ".join(["?"] * len(values))
+
+        query = f"IN ({placeholders})"
+        return self.append(query, self._flattern(values))
 
     def __str__(self) -> str:
         """
@@ -77,9 +94,24 @@ class QueryBuilder:
         self._params.extend(query._params)
         return self
 
+    def _flattern(self, lst: list) -> list:
+        """
+        Flattens a list of lists into a single list.
+        :param lst: The list to flatten.
+        :return: A flattened list.
+        """
+        return [item for sublist in lst for item in sublist]
+
     @property
     def query(self) -> str:
         """
         Returns the current query as a string.
         """
         return " ".join(self._query)
+
+    @property
+    def params(self) -> list[Any]:
+        """
+        Returns the current parameters as a list.
+        """
+        return self._params
