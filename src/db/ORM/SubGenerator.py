@@ -60,7 +60,8 @@ class StubVisitor(ast.NodeVisitor):
     def __init__(self, base_class_name: str):
         self.base_class_name = base_class_name
         self.stub_parts: List[str] = []
-        self.imports: Set[str] = set(["from typing import Optional, Any"])  # Standard-Imports
+        self.functions_defs: List[str] = []
+        self.imports: Set[str] = set()  # Standard-Imports
 
     def _format_type_hint(self, node: Optional[ast.expr]) -> str:
         """Formatiert einen Typ-Hint-AST-Knoten als String."""
@@ -77,6 +78,33 @@ class StubVisitor(ast.NodeVisitor):
         except AttributeError:
             # Fallback für ältere Python-Versionen
             return "Any"  # Oder eine komplexere manuelle Rekonstruktion
+
+    def visit_Import(self, node):
+        """Sammelt Import-Statements."""
+        for alias in node.names:
+            if alias.name not in self.imports:
+                self.imports.add(f"import {alias.name}")
+
+    def visit_ImportFrom(self, node):
+        """Sammelt Import-From-Statements."""
+        for alias in node.names:
+            if alias.name not in self.imports:
+                self.imports.add(f"from {node.module} import {alias.name}")
+
+    def visit_FunctionDef(self, node):
+        """Besucht Funktionsdefinitionen."""
+        func_name = node.name
+        params = []
+        for arg in node.args.args:
+            param_type = self._format_type_hint(arg.annotation) if arg.annotation else "Any"
+            params.append(f"{arg.arg}: {param_type}")
+
+        # Rückgabewert
+        return_type = self._format_type_hint(node.returns) if node.returns else "None"
+
+        # Funktionsdefinition für den Stub-Body
+        func_stub = f"def {func_name}(\n    " + ",\n    ".join(params) + "\n) -> {return_type}: ..."
+        self.functions_defs.append(func_stub)
 
     def visit_ClassDef(self, node: ast.ClassDef):
         # Prüfen, ob die Klasse von der gewünschten Basisklasse erbt
@@ -124,6 +152,11 @@ class StubVisitor(ast.NodeVisitor):
                     init_params.append(f"{field_name}: {type_hint_str} = {default_repr}")
                 else:
                     init_params.append(f"{field_name}: {type_hint_str}")
+            elif isinstance(item, ast.Assign):
+                field_name = item.targets[0].id
+                value = item.value.value
+
+                fields.append(f"    {field_name} = '{value}'")
 
         # Stub-Teil für diese Klasse zusammenbauen
         class_stub = f"\n\nclass {class_name}{base_str}:\n"
@@ -200,16 +233,22 @@ if __name__ == "__main__":
                         help=f"Name of the base class to look for (default: {BASE_CLASS_NAME}).")
 
     args = parser.parse_args()
-
-    source_path: Path = args.source_file
-    output_path: Path = args.output
-
-    if output_path is None:
-        # Standard-Ausgabepfad: Gleicher Name, aber .pyi Endung
-        output_path = source_path.with_suffix(".pyi")
-
-    if source_path == output_path:
-        print(f"Error: Source and target file cannot be the same: {source_path}", file=sys.stderr)
+    input_path: Path = Path(args.source_file)
+    if input_path.is_dir():
+        dataclass_files = list(input_path.rglob("*Data.py"))
+    elif input_path.is_file():
+        dataclass_files = [input_path]
+    else:
+        print(f"Error: Invalid input path: {input_path}", file=sys.stderr)
         sys.exit(1)
 
-    generate_stub_file(source_path, output_path, args.base_class)
+    for file in dataclass_files:
+        source_file: Path = file
+
+        output_path = source_file.with_suffix(".pyi")
+
+        if source_file == output_path:
+            print(f"Error: Source and target file cannot be the same: {source_file}", file=sys.stderr)
+            sys.exit(1)
+
+        generate_stub_file(source_file, output_path, args.base_class)
