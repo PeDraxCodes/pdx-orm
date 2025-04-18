@@ -54,11 +54,13 @@ class QueryBuilder:
             raise ValueError("IN clause cannot be empty")
         if isinstance(values[0], tuple) or isinstance(values[0], list):
             placeholders = ", ".join(["(" + ", ".join(["?"] * len(v)) + ")" for v in values])
+            params = self._flattern(values)
         else:
             placeholders = ", ".join(["?"] * len(values))
+            params = values
 
         query = f"IN ({placeholders})"
-        return self.append(query, self._flattern(values))
+        return self.append(query, params)
 
     def __str__(self) -> str:
         """
