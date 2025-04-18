@@ -3,6 +3,7 @@ from typing import Any, Iterable, Type
 
 from db import Connection
 from db.BaseDBOperations import BaseDBOperations, DBResult
+from db.DBColumn import DBColumn
 from db.ORM import QueryGenerator
 from db.ORM.AbstractSchema import AbstractSchema
 from db.ORM.BaseData import BaseData
@@ -53,7 +54,7 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         self._insert(data)
 
     def _insert(self, data: D) -> None:
-        columns = data._meta["db_columns"]
+        columns = data._meta.db_columns
         column_names = self._columns_to_insert(data)
         query = (QueryBuilder()
                  .append("INSERT INTO " + self._schema.table_name + " (" + ", ".join(column_names) + ") ")
@@ -67,7 +68,7 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         Returns the columns to be inserted into the table.
         """
         columns = self._schema.columns
-        auto_generated = data._meta["auto_generated"]
+        auto_generated = data._meta.auto_generated_fields
         for col in self._schema.columns:
             if col in auto_generated and getattr(data, col) is None:
                 columns.remove(col)
@@ -80,7 +81,7 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         self._update(data)
 
     def _update(self, data: D) -> None:
-        columns = data._meta["db_columns"]
+        columns = data._meta.db_columns
         pk = self._schema.primaryKey
         column_names = [col for col in self._schema.columns if col not in pk]
         column_values = [getattr(data, columns[col].field_name) for col in column_names]
@@ -114,39 +115,56 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         """
         Returns a list of data objects based on the provided query.
         """
-        foreign_key = [(col, value) for col, value in self._data_class().meta["db_columns"].items() if
-                       value.reference is not None]
+        foreign_key = self._data_class.meta().foreign_keys.items()
         result = self.execute_select_query(query).to_dict
-        result = [self._data_class(**row) for row in result]
-        for col, value in foreign_key:
-            foreign_key_values = {getattr(row, value.field_name) for row in result}
-            referenced_schema = value.reference.schema
+        for col, values in foreign_key:
+            foreign_key_values = {self._get_fk_as_tuple(row, values) for row in result}
+            referenced_schema = values[0].reference().schema
             query = (QueryBuilder()
                      .append(f"SELECT * FROM {referenced_schema.table_name} ")
-                     .append(f"WHERE {referenced_schema.primaryKey[0]}")
+                     .append(f"WHERE ({', '.join(referenced_schema.primaryKey)})")
                      .appendIn(list(foreign_key_values)))
 
-            foreign_key_result = value.reference().get_data_with_query(query)
-            foreign_key_map = {getattr(i, referenced_schema.primaryKey[0]): i for i in foreign_key_result}
-            for row in result:
-                row_value = getattr(row, col)
-                if row_value in foreign_key_map:
-                    setattr(row, col, foreign_key_map[row_value])
-        return result
+            foreign_key_result = values[0].reference().get_data_with_query(query)
+            foreign_primary_key = referenced_schema.primaryKey
+            lookup_map = {}
+
+            if len(foreign_primary_key) > 1:
+                for i in foreign_key_result:
+                    lookup_map[i.flattened_primary_key] = i
+                for row in result:
+                    row_value = self._get_fk_as_tuple(row, values)
+                    if row_value in lookup_map:
+                        row[col] = lookup_map[row_value]
+                    else:
+                        row[col] = None
+            else:
+                foreign_key_map = {getattr(i, referenced_schema.primaryKey[0]): i for i in foreign_key_result}
+                for row in result:
+                    row_value = row[col]
+                    if row_value in foreign_key_map:
+                        row[col] = foreign_key_map[row_value]
+
+        return [self._data_class(**row) for row in result]
 
     def get_one_with_query(self, query: QueryBuilder | str) -> D:
         """
         Returns a single row based on the provided query.
         """
         result = self.execute_select_query(query).to_dict
-        data_as_dataclass = self._data_class(**result[0])
-        foreign_key = [(col, value) for col, value in data_as_dataclass.meta["db_columns"].items() if
-                       value.reference is not None]
-        for col, value in foreign_key:
-            reference_value = getattr(data_as_dataclass, col)
-            resolved_value = value.reference().get_one(reference_value)
-            setattr(data_as_dataclass, col, resolved_value)
-        return data_as_dataclass
+        data_as_dataclass = result[0]
+        for col, values in self._data_class().meta().foreign_keys.items():
+            key = self._get_fk_as_tuple(data_as_dataclass, values)
+            resolved_value = values[0].reference().get_one(key)
+            data_as_dataclass[col] = resolved_value
+        return self._data_class(**data_as_dataclass)
+
+    @staticmethod
+    def _get_fk_as_tuple(result: dict, fk: list[DBColumn]) -> tuple:
+        key = []
+        for value in fk:
+            key.append(result[value.field_name])
+        return tuple(key)
 
     def execute_select_query(self, query: QueryBuilder | str, params: list | None = None) -> DBResult:
         """
