@@ -1,5 +1,6 @@
 import json
 import typing
+from typing import Any
 
 from db.ORM.ModelMeta import MetaInformation, ModelMeta
 
@@ -12,7 +13,11 @@ class BaseData(metaclass=ModelMeta):
 
         for field_name, field_obj in self._meta.fields.items():
             # Setze Standardwerte oder übergebene Werte
-            value = kwargs.get(field_name, field_obj.default_value)
+            if isinstance(field_obj, list):
+                default_value = None
+            else:
+                default_value = field_obj.default_value
+            value = kwargs.get(field_name, default_value)
             if isinstance(value, dict):
                 # Wenn der Wert ein Dictionary ist, konvertiere ihn in das richtige Format
                 value = field_obj.reference.data(**value)
@@ -59,7 +64,6 @@ class BaseData(metaclass=ModelMeta):
             if not isvalid:
                 raise TypeError(f"Type of {name} is not {expected_type}, but {type(value)}")
 
-
     @property
     def primary_key(self) -> list:
         """
@@ -87,6 +91,35 @@ class BaseData(metaclass=ModelMeta):
         Returns the meta information of the object.
         """
         return cls._meta
+
+    def get_as_db_name(self, db_colum: str) -> Any:
+        """
+        Returns the value of the object as a database name.
+        """
+        if db_colum not in self._meta.db_columns:
+            raise ValueError(f"Column {db_colum} not found in meta information")
+        return getattr(self, self._meta.db_columns[db_colum].field_name)
+
+    def get_values_for_columns(self, columns: list[str]) -> list[Any]:
+        """
+        Returns the values for the given columns.
+        """
+        values: list[Any] = []
+        for field in self._meta.fields.values():
+            if isinstance(field, list):
+                value = getattr(self, field[0].field_name)
+                if value is None:
+                    values.extend([None] * len(field))
+                    continue
+                value = value.flattened_primary_key
+                if not all(x.db_field_name in columns for x in field):
+                    continue
+                values.extend(value)
+            else:
+                value = getattr(self, field.field_name)
+                if field.db_field_name in columns:
+                    values.append(value)
+        return values
 
     def json(self) -> str:
         """

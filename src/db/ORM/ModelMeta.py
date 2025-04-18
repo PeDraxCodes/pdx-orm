@@ -20,7 +20,7 @@ class ModelMeta(type):
         if name == 'BaseModel':
             return super().__new__(mcs, name, bases, cls_dict)
 
-        fields: dict[str, DBColumn] = {}
+        fields: dict[str, DBColumn | list[DBColumn]] = {}
         db_columns: dict[str, DBColumn] = {}
         primary_key_field: list[DBColumn] = []
         foreign_key_field: dict[str, list[DBColumn]] = {}
@@ -33,7 +33,7 @@ class ModelMeta(type):
                 if value.field_name is None:  # default db name
                     value.field_name = key
                 fields[key] = value  # save the field in the dict
-                db_columns[value.field_name] = value  # save the field in the db_columns dict
+                db_columns[value.db_field_name] = value  # save the field in the db_columns dict
                 if value.primary_key:
                     primary_key_field.append(value)
                 if value.auto_generated:
@@ -46,11 +46,11 @@ class ModelMeta(type):
                 # check if the list contains DBColumn instances
                 if all(isinstance(item, DBColumn) for item in value):
                     for item in value:
-                        db_columns[item.field_name] = item
+                        db_columns[item.db_field_name] = item
                         if item.primary_key:
                             primary_key_field.append(item)
                     foreign_key_field[key] = value
-                    fields[key] = value[0]
+                    fields[key] = value
 
         if not primary_key_field:
             pass
