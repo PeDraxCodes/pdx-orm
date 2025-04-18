@@ -1,18 +1,23 @@
+import logging
 from abc import ABC
-from typing import Any, Iterable, Type
+from typing import Any, Type
 
 from db import Connection
-from db.BaseDBOperations import BaseDBOperations, DBResult
 from db.DBColumn import DBColumn
 from db.ORM import QueryGenerator
 from db.ORM.AbstractSchema import AbstractSchema
 from db.ORM.BaseData import BaseData
+from db.ORM.BaseDBOperations import BaseDBOperations, DBResult
 from db.ORM.QueryBuilder import QueryBuilder
+
+from .logger import ORM_LOGGER_NAME
 
 type PrimaryKey = list[Any]
 
+orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
-class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
+
+class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
     schema: AbstractSchema
     data: Type[BaseData]
 
@@ -45,12 +50,11 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         self._insert(data)
 
     def _insert(self, data: D) -> None:
-        columns = data._meta.db_columns
         column_names = self._columns_to_insert(data)
         query = (QueryBuilder()
                  .append("INSERT INTO " + self._schema.table_name + " (" + ", ".join(column_names) + ") ")
                  .append("VALUES (" + ", ".join(["?"] * len(column_names)) + ")",
-                         data.get_values_for_columns([columns[col].field_name for col in column_names])))
+                         data.get_values_for_columns(column_names)))
 
         self.execute(query)
 
@@ -110,6 +114,10 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         result = self.execute_select_query(query).to_dict
         for col, values in foreign_key:
             foreign_key_values = {self._get_fk_as_tuple(row, values) for row in result}
+            foreign_key_values = list(filter(lambda row: all(val is not None for val in row), foreign_key_values))
+            if len(foreign_key_values) == 0:
+                continue
+
             referenced_schema = values[0].reference().schema
             query = (QueryBuilder()
                      .append(f"SELECT * FROM {referenced_schema.table_name} ")
@@ -165,7 +173,7 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
     def _get_fk_as_tuple(result: dict, fk: list[DBColumn]) -> tuple:
         key = []
         for value in fk:
-            key.append(result[value.field_name])
+            key.append(result[value.db_field_name])
         return tuple(key)
 
     def execute_select_query(self, query: QueryBuilder | str, params: list | None = None) -> DBResult:
@@ -181,10 +189,9 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         """
         Executes a query (INSERT, UPDATE, DELETE) and returns the result.
         """
-        print(query)
-
         if isinstance(query, QueryBuilder):
             params = query.params
             query = query.query
         with Connection() as db:
+            orm_logger.info("DML-STATEMENT: %s", query)
             db.execute(query, params)
