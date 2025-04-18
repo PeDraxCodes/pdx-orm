@@ -26,26 +26,17 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
 
         return self.get_data_with_query(query)
 
-    def get_one(self, key: K) -> D:
+    def get_one(self, key: K, nullable: bool = False) -> D | None:
         """
         Returns a single row based on the provided key.
         """
         if not isinstance(key, list) and not isinstance(key, tuple):
             key = [key]
-        # foreign_key = [value for _, value in self._data_class().meta["db_columns"].items() if
-        #                value.reference is not None]
-        #
-        # query = (QueryBuilder()
-        # .append(f"SELECT {self._schema.select} FROM " + self._schema.table_name)
-        # .append(
-        #     QueryGenerator.generate_join(self._schema, [foreign_key[0].field_name], foreign_key[0].reference.schema)))
-
-        query = (
-            QueryBuilder()
-            .append(f"{self._schema.select} FROM " + self._schema.table_name)
-            .append(QueryGenerator.generate_where_with_pk(self._schema, key))
-        )
-        return self.get_one_with_query(query)
+        query = QueryGenerator.generate_query_with_pk(self._schema, key)
+        result = self.get_one_or_none_with_query(query)
+        if not result and not nullable:
+            raise ValueError(f"No data found for key: {key}")
+        return result
 
     def insert(self, data: D) -> None:
         """
@@ -59,7 +50,7 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         query = (QueryBuilder()
                  .append("INSERT INTO " + self._schema.table_name + " (" + ", ".join(column_names) + ") ")
                  .append("VALUES (" + ", ".join(["?"] * len(column_names)) + ")",
-                         [getattr(data, columns[col].field_name) for col in column_names]))
+                         data.get_values_for_columns([columns[col].field_name for col in column_names])))
 
         self.execute(query)
 
@@ -84,10 +75,11 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         columns = data._meta.db_columns
         pk = self._schema.primaryKey
         column_names = [col for col in self._schema.columns if col not in pk]
-        column_values = [getattr(data, columns[col].field_name) for col in column_names]
+        field_names = [columns[col].field_name for col in column_names]
+        attr = data.get_values_for_columns(field_names)
         query = (QueryBuilder()
                  .append("UPDATE " + self._schema.table_name)
-                 .append("SET " + ", ".join([f"{col} = ?" for col in column_names]), column_values)
+                 .append("SET " + ", ".join([f"{col} = ?" for col in column_names]), attr)
                  .append(QueryGenerator.generate_where_with_pk(self._schema, [getattr(data, col) for col in
                                                                               self._schema.primaryKey])))
 
@@ -97,7 +89,6 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         """
         Deletes a row from the table.
         """
-
         if isinstance(data, self._data_class):
             pk = [getattr(data, col) for col in self._schema.primaryKey]
         else:
@@ -151,11 +142,22 @@ class AbstractTable[D: BaseData, K: Iterable](ABC, BaseDBOperations):
         """
         Returns a single row based on the provided query.
         """
+        result = self.get_one_or_none_with_query(query)
+        if not result:
+            raise ValueError("No data found")
+        return result
+
+    def get_one_or_none_with_query(self, query: QueryBuilder | str) -> D | None:
+        """
+        Returns a single row based on the provided query.
+        """
         result = self.execute_select_query(query).to_dict
+        if not result:
+            return None
         data_as_dataclass = result[0]
         for col, values in self._data_class().meta().foreign_keys.items():
             key = self._get_fk_as_tuple(data_as_dataclass, values)
-            resolved_value = values[0].reference().get_one(key)
+            resolved_value = values[0].reference().get_one(key, nullable=True)
             data_as_dataclass[col] = resolved_value
         return self._data_class(**data_as_dataclass)
 
