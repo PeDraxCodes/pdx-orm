@@ -1,4 +1,0 @@
-DB_IS_INITIALIZED = False
-
-DB_READONLY_PATH = None
-DB_PATH = None
