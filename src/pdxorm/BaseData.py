@@ -2,7 +2,7 @@ import json
 import typing
 from typing import Any
 
-from db.ORM.ModelMeta import MetaInformation, ModelMeta
+from .ModelMeta import MetaInformation, ModelMeta
 
 
 class BaseData(metaclass=ModelMeta):

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from db.DBColumn import DBColumn
+from pdxorm.DBColumn import DBColumn
 
 
 @dataclass

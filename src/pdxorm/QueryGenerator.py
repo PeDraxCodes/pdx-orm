@@ -1,8 +1,8 @@
-from db.ORM.AbstractSchema import AbstractSchema
-from db.ORM.QueryBuilder import QueryBuilder
+from .AbstractSchema import AbstractSchema
+from .QueryBuilder import QueryBuilder
 
 
-def generate_where_with_pk(schema: AbstractSchema) -> QueryBuilder:
+def generate_where_with_pk(schema: AbstractSchema, pk: list) -> QueryBuilder:
     """
     Generates a WHERE clause based on the primary key of the schema.
     """

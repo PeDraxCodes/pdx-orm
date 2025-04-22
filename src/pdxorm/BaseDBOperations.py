@@ -1,8 +1,9 @@
 import logging
 import sqlite3
 
-from . import settings
+from .DBResult import DBResult
 from .logger import ORM_LOGGER_NAME
+from .SqliteConnection import SqliteConnection
 
 orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 

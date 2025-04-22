@@ -5,9 +5,8 @@ import time
 import traceback
 from types import TracebackType
 
-from db.ORM.BaseDBOperations import SqliteConnection
-
 from . import settings
+from .BaseDBOperations import SqliteConnection
 from .logger import ORM_LOGGER_NAME
 
 orm_logger = logging.getLogger(ORM_LOGGER_NAME)

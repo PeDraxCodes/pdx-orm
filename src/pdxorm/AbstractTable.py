@@ -2,15 +2,15 @@ import logging
 from abc import ABC
 from typing import Any, Type
 
-from db import Connection
-from db.DBColumn import DBColumn
-from db.ORM import QueryGenerator
-from db.ORM.AbstractSchema import AbstractSchema
-from db.ORM.BaseData import BaseData
-from db.ORM.BaseDBOperations import BaseDBOperations, DBResult
-from db.ORM.QueryBuilder import QueryBuilder
-
+from . import QueryGenerator
+from .AbstractSchema import AbstractSchema
+from .BaseData import BaseData
+from .BaseDBOperations import BaseDBOperations
+from .Connection import Connection
+from .DBColumn import DBColumn
+from .DBResult import DBResult
 from .logger import ORM_LOGGER_NAME
+from .QueryBuilder import QueryBuilder
 
 type PrimaryKey = list[Any]
 
