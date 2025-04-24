@@ -48,8 +48,6 @@ class QueryBuilder:
         """
         Appends an IN clause to the current query.
         """
-        if not self._has_where:
-            raise ValueError("IN clause must be preceded by a WHERE clause")
         if not values:
             raise ValueError("IN clause cannot be empty")
         if isinstance(values[0], tuple) or isinstance(values[0], list):
