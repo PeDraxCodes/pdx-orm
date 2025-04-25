@@ -1,10 +1,6 @@
-import logging
 from dataclasses import dataclass
 
-from pdxorm import ORM_LOGGER_NAME
 from pdxorm.DBColumn import DBColumn
-
-orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
 
 @dataclass
@@ -60,9 +56,6 @@ class ModelMeta(type):
                             primary_key_field.append(item)
                     foreign_key_field[key] = value
                     fields[key] = value
-
-        if not primary_key_field:
-            orm_logger.warning(f"[Meta Warning] Model '{name}' does not have a primary key defined.")
 
         # save the collected data in the meta dict
         meta = {
