@@ -1,12 +1,9 @@
 import logging
-import shutil
 import sqlite3
-import time
 import traceback
 from types import TracebackType
 
 from . import settings
-from .BaseDBOperations import SqliteConnection
 from .logger import ORM_LOGGER_NAME
 
 orm_logger = logging.getLogger(ORM_LOGGER_NAME)
@@ -33,21 +30,3 @@ class Connection(sqlite3.Connection):
             self.commit()
 
         self.close()
-
-    def _rollback_with_backup(self):
-        orm_logger.warning(f"Rolling back with backup {self.BACKUP_DB}")
-        backup_path = self.BACKUP_DB / self._backup_name
-        try:
-            self.close()
-            if SqliteConnection.open:
-                SqliteConnection.close()
-            self.DB.unlink()
-            try:
-                backup_path.rename(backup_path)
-                shutil.move(backup_path, self.DB)
-            except OSError:
-                time.sleep(0.2)
-                shutil.move(backup_path, self.DB)
-        except sqlite3.Error as e:
-            logging.error(f"Error while rolling back: {e}")
-            raise e

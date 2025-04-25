@@ -65,11 +65,11 @@ class BaseData(metaclass=ModelMeta):
                 raise TypeError(f"Type of {name} is not {expected_type}, but {type(value)}")
 
     @property
-    def primary_key(self) -> list:
+    def primary_key(self) -> tuple:
         """
         Returns the primary key of the object.
         """
-        return [getattr(self, field.field_name) for field in self._meta.primary_keys]
+        return tuple(getattr(self, field.field_name) for field in self._meta.primary_keys)
 
     @property
     def flattened_primary_key(self) -> tuple:
