@@ -1,16 +1,20 @@
+import logging
 from dataclasses import dataclass
 
+from pdxorm import ORM_LOGGER_NAME
 from pdxorm.DBColumn import DBColumn
+
+orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
 
 @dataclass
 class MetaInformation:
-    fields: dict[str, DBColumn]
-    db_columns: dict[str, DBColumn]
-    primary_keys: list[DBColumn]
-    foreign_keys: dict[str, list[DBColumn]]
-
-    auto_generated_fields: list[DBColumn]
+    fields: dict[str, DBColumn]  # Dict from {model_attr: Field_instance}
+    db_columns: dict[str, DBColumn]  # Map from {db_column_name: Field_instance}
+    primary_keys: list[DBColumn]  # List of primary key fields
+    foreign_keys: dict[str, list[DBColumn]]  # Map from {model_attr: [Field_instance]}
+    one_to_many_fields: dict[str, DBColumn]  # Map from {model_attr: Field_instance}
+    auto_generated_fields: list[DBColumn]  # List of auto generated fields
 
 
 class ModelMeta(type):
@@ -24,6 +28,7 @@ class ModelMeta(type):
         db_columns: dict[str, DBColumn] = {}
         primary_key_field: list[DBColumn] = []
         foreign_key_field: dict[str, list[DBColumn]] = {}
+        one_to_many_field: dict[str, DBColumn] = {}
         auto_generated_field: list[DBColumn] = []
 
         # delete the passed class attributes values
@@ -38,8 +43,12 @@ class ModelMeta(type):
                     primary_key_field.append(value)
                 if value.auto_generated:
                     auto_generated_field.append(value.field_name)
+
                 if value.reference:
-                    foreign_key_field[key] = [value]
+                    if value.referenced_column:
+                        one_to_many_field[key] = value
+                    else:
+                        foreign_key_field[key] = [value]
 
                 del cls_dict[key]
             elif isinstance(value, list):
@@ -53,8 +62,7 @@ class ModelMeta(type):
                     fields[key] = value
 
         if not primary_key_field:
-            pass
-            # logging.warning(f"[Meta Warning] Model '{name}' does not have a primary key defined.")
+            orm_logger.warning(f"[Meta Warning] Model '{name}' does not have a primary key defined.")
 
         # save the collected data in the meta dict
         meta = {
@@ -63,6 +71,7 @@ class ModelMeta(type):
             'db_columns': db_columns,  # Map from {db_column_name: Field_instance}
             'auto_generated_fields': auto_generated_field,
             'foreign_keys': foreign_key_field,  # Map from {model_attr: [Field_instance]}
+            'one_to_many_fields': one_to_many_field,  # Map from {model_attr: [Field_instance]}
         }
         meta = MetaInformation(**meta)
         cls_dict['_meta'] = meta  # save the meta dict in the class dict
