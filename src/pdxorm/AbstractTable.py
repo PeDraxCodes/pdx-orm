@@ -63,7 +63,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         Returns the columns to be inserted into the table.
         """
         columns = self._schema.columns
-        auto_generated = data._meta.auto_generated_fields
+        auto_generated = data.meta().auto_generated_fields
         for col in self._schema.columns:
             if col in auto_generated and getattr(data, col) is None:
                 columns.remove(col)
@@ -76,7 +76,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         self._update(data)
 
     def _update(self, data: D) -> None:
-        columns = data._meta.db_columns
+        columns = data.meta().db_columns
         pk = self._schema.primaryKey
         column_names = [col for col in self._schema.columns if col not in pk]
         field_names = [columns[col].field_name for col in column_names]
@@ -89,11 +89,12 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
 
         self.execute(query)
 
-    def delete(self, data: D | K) -> None:
+    def delete(self, data: D | K = None, key: K = None) -> None:
         """
         Deletes a row from the table.
         """
-        if isinstance(data, self._data_class):
+        assert data or key, "Either data or key must be provided"
+        if isinstance(data, self._data_class) and not key:
             pk = [getattr(data, col) for col in self._schema.primaryKey]
         else:
             pk = data
@@ -112,9 +113,12 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         """
         foreign_key = self._data_class.meta().foreign_keys.items()
         result = self.execute_select_query(query).to_dict
+        if not result:
+            return []
+
         for col, values in foreign_key:
             foreign_key_values = {self._get_fk_as_tuple(row, values) for row in result}
-            foreign_key_values = list(filter(lambda row: all(val is not None for val in row), foreign_key_values))
+            foreign_key_values = list(filter(lambda row: all(item is not None for item in row), foreign_key_values))
             if len(foreign_key_values) == 0:
                 continue
 
