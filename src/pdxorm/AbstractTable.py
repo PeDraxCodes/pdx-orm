@@ -133,18 +133,41 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
                     lookup_map[i.flattened_primary_key] = i
                 for row in result:
                     row_value = self._get_fk_as_tuple(row, values)
+
                     if row_value in lookup_map:
-                        row[col] = lookup_map[row_value]
+                        for val in values:
+                            row[val.db_field_name] = lookup_map[row_value]
                     else:
-                        row[col] = None
+                        for val in values:
+                            row[val.db_field_name] = None
             else:
                 foreign_key_map = {getattr(i, referenced_schema.primaryKey[0]): i for i in foreign_key_result}
-                for row in result:
-                    row_value = row[col]
-                    if row_value in foreign_key_map:
-                        row[col] = foreign_key_map[row_value]
+                self._update_result_dict(result, values[0].db_field_name, foreign_key_map)
 
-        return [self._data_class(**row) for row in result]
+        one_to_many_cols = self._data_class.meta().one_to_many_fields.items()
+
+        for col, value in one_to_many_cols:
+            db_values = {row[value.db_field_name] for row in result}
+            query = (QueryBuilder()
+                     .append(value.referenced_column).appendIn(list(db_values)))
+            one_To_many_result = value.reference().get_data_with_where(query)
+            result_map = {}
+            for row in one_To_many_result:
+                row_value = getattr(row, value.referenced_column)
+                if row_value not in result_map:
+                    result_map[row_value] = []
+                result_map[row_value].append(row)
+            self._update_result_dict(result, value.db_field_name, result_map, default=[])
+
+        return [self._data_class.from_db_dict(row) for row in result]
+
+    def _update_result_dict(self, result: list[dict], column: str, result_map: dict, default: Any = None):
+        for row in result:
+            row_value = row[column]
+            if row_value in result_map:
+                row[column] = result_map[row_value]
+            else:
+                row[column] = default
 
     def get_one_with_query(self, query: QueryBuilder | str) -> D:
         """
@@ -162,12 +185,46 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         result = self.execute_select_query(query).to_dict
         if not result:
             return None
-        data_as_dataclass = result[0]
-        for col, values in self._data_class().meta().foreign_keys.items():
-            key = self._get_fk_as_tuple(data_as_dataclass, values)
+        result_as_dict = result[0]
+        for col, values in self._data_class.meta().foreign_keys.items():
+            key = self._get_fk_as_tuple(result_as_dict, values)
             resolved_value = values[0].reference().get_one(key, nullable=True)
-            data_as_dataclass[col] = resolved_value
-        return self._data_class(**data_as_dataclass)
+            result_as_dict[col] = resolved_value
+
+        for col, values in self._data_class.meta().one_to_many_fields.items():
+            key = result_as_dict[values.db_field_name]
+            query = QueryBuilder().append(f"{values.referenced_column} = ?;", (key,))
+            resolved_value = values.reference().get_data_with_where(query)
+            result_as_dict[values.db_field_name] = resolved_value or []
+
+        return self._data_class.from_db_dict(result_as_dict)
+
+    def get_data_with_where(self, query: QueryBuilder | str) -> list[D]:
+        """
+        Returns a list of data objects based on the provided query where clause.
+        """
+        query = (QueryBuilder()
+                 .append(f"SELECT * FROM {self._schema.table_name_no_alias} WHERE")
+                 .append(query))
+        return self.get_data_with_query(query)
+
+    def get_one_with_where(self, query: QueryBuilder | str) -> D:
+        """
+        Returns a single row based on the provided query where clause.
+        """
+        query = (QueryBuilder()
+                 .append(f"SELECT * FROM {self._schema.table_name_no_alias} WHERE")
+                 .append(query))
+        return self.get_one_with_query(query)
+
+    def get_one_with_join(self, query: QueryBuilder | str, alias: str = None) -> D:
+        """
+        Returns a single row based on the provided query with join.
+        """
+        alias = alias or self.schema.alias
+        whole_query = QueryBuilder().append(
+            f"SELECT {alias}.* FROM {self.schema.table_name_no_alias} AS {alias}").append(query)
+        return self.get_one_with_query(whole_query)
 
     @staticmethod
     def _get_fk_as_tuple(result: dict, fk: list[DBColumn]) -> tuple:
