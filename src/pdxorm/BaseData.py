@@ -21,6 +21,9 @@ class BaseData(metaclass=ModelMeta):
             if isinstance(value, dict):
                 # Wenn der Wert ein Dictionary ist, konvertiere ihn in das richtige Format
                 value = field_obj.reference.data(**value)
+            if isinstance(value, list):
+                # Wenn der Wert eine Liste ist, konvertiere ihn in die richtige Form
+                value = [field_obj.reference.data(**item) if isinstance(item, dict) else item for item in value]
             setattr(self, field_name, value)
 
         self.validate_types()
@@ -39,6 +42,15 @@ class BaseData(metaclass=ModelMeta):
                 return False
         return True
 
+    @classmethod
+    def from_db_dict(cls, db_dict: dict) -> "BaseData":
+        """
+        Converts a dictionary from the database to an instance of the class.
+        """
+        db_columns = cls.meta().db_columns
+        new_dict = {db_columns[k].field_name: v for k, v in db_dict.items()}
+        return cls(**new_dict)
+
     def validate_types(self):
         # check types referenced in the annotations
 
@@ -49,7 +61,7 @@ class BaseData(metaclass=ModelMeta):
 
             if origin is typing.Literal:
                 continue
-            if not all(not isinstance(value, list) for arg in args):
+            if not all(not isinstance(value, list) for _ in args):
                 continue
 
             if origin is typing.Union and type(None) in args:  # Optional-Typ
@@ -90,7 +102,7 @@ class BaseData(metaclass=ModelMeta):
         """
         Returns the meta information of the object.
         """
-        return cls._meta
+        return cls.__class__._meta
 
     def get_as_db_name(self, db_colum: str) -> Any:
         """
