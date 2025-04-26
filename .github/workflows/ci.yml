@@ -26,11 +26,11 @@ jobs:
       - name: Test with pytest
         run: poetry run pytest tests/ --cov=pdxorm --cov-report=xml
 
-#      - name: Use Codecov to track coverage
-#        uses: codecov/codecov-action@v5
-#        with:
-#          token: ${{ secrets.CODECOV_TOKEN }}
-#          files: ./coverage.xml   # coverage report
+      - name: Use Codecov to track coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml   # coverage report
 
 #      - name: Build documentation
 #        run: poetry run make html --directory docs/
