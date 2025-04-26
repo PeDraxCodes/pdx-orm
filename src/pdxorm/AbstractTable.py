@@ -19,7 +19,7 @@ orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
 class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
     schema: AbstractSchema
-    data: Type[BaseData]
+    dataclass: Type[BaseData]
 
     def __init__(self, schema: AbstractSchema, data_class: Type[D]):
         super().__init__()
@@ -77,15 +77,15 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
 
     def _update(self, data: D) -> None:
         columns = data.meta().db_columns
+        schema = self.schema.no_alias()
         pk = self._schema.primaryKey
-        column_names = [col for col in self._schema.columns if col not in pk]
+        column_names = [col for col in schema.columns if col not in pk]
         field_names = [columns[col].field_name for col in column_names]
         attr = data.get_values_for_columns(field_names)
         query = (QueryBuilder()
-                 .append("UPDATE " + self._schema.table_name)
+                 .append("UPDATE " + schema.table_name)
                  .append("SET " + ", ".join([f"{col} = ?" for col in column_names]), attr)
-                 .append(QueryGenerator.generate_where_with_pk(self._schema, [getattr(data, col) for col in
-                                                                              self._schema.primaryKey])))
+                 .append(QueryGenerator.generate_where_with_pk(schema, data.flattened_primary_key)))
 
         self.execute(query)
 
@@ -95,15 +95,16 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         """
         assert data or key, "Either data or key must be provided"
         if isinstance(data, self._data_class) and not key:
-            pk = [getattr(data, col) for col in self._schema.primaryKey]
+            pk = data.flattened_primary_key
         else:
             pk = data
         self._delete(pk)
 
     def _delete(self, primaryKey: K) -> None:
+        schema = self.schema.no_alias()
         query = (QueryBuilder()
-                 .append("DELETE FROM " + self._schema.table_name)
-                 .append(QueryGenerator.generate_where_with_pk(self._schema, primaryKey)))
+                 .append("DELETE FROM " + schema.table_name)
+                 .append(QueryGenerator.generate_where_with_pk(schema, primaryKey)))
 
         self.execute(query)
 
@@ -246,7 +247,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
             query = query.query
         return super().execute_select_query(query, params)
 
-    def execute(self, query: QueryBuilder | str, params: list | None = None):
+    def execute(self, query: QueryBuilder | str, params: list | tuple | None = None):
         """
         Executes a query (INSERT, UPDATE, DELETE) and returns the result.
         """

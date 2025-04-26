@@ -2,7 +2,7 @@ from .AbstractSchema import AbstractSchema
 from .QueryBuilder import QueryBuilder
 
 
-def generate_where_with_pk(schema: AbstractSchema, pk: list) -> QueryBuilder:
+def generate_where_with_pk(schema: AbstractSchema, pk: tuple) -> QueryBuilder:
     """
     Generates a WHERE clause based on the primary key of the schema.
     """

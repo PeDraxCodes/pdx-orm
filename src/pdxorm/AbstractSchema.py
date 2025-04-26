@@ -44,3 +44,7 @@ class AbstractSchema(ABC):
     @abstractmethod
     def primaryKey(self) -> list[str]:
         ...
+
+    @classmethod
+    def no_alias(cls) -> "AbstractSchema":
+        return cls("")
