@@ -46,5 +46,5 @@ class AbstractSchema(ABC):
         ...
 
     @classmethod
-    def no_alias(cls) -> "AbstractSchema":
+    def without_alias(cls) -> "AbstractSchema":
         return cls("")

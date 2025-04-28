@@ -12,7 +12,7 @@ from .DBResult import DBResult
 from .logger import ORM_LOGGER_NAME
 from .QueryBuilder import QueryBuilder
 
-type PrimaryKey = list[Any]
+PrimaryKey = list[Any]
 
 orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
@@ -77,7 +77,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
 
     def _update(self, data: D) -> None:
         columns = data.meta().db_columns
-        schema = self.schema.no_alias()
+        schema = self.schema.without_alias()
         pk = self._schema.primaryKey
         column_names = [col for col in schema.columns if col not in pk]
         field_names = [columns[col].field_name for col in column_names]
@@ -85,7 +85,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         query = (QueryBuilder()
                  .append("UPDATE " + schema.table_name)
                  .append("SET " + ", ".join([f"{col} = ?" for col in column_names]), attr)
-                 .append(QueryGenerator.generate_where_with_pk(schema, data.flattened_primary_key)))
+                 .append(QueryGenerator.generate_where_with_pk(schema, data.primary_key)))
 
         self.execute(query)
 
@@ -101,7 +101,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         self._delete(pk)
 
     def _delete(self, primaryKey: K) -> None:
-        schema = self.schema.no_alias()
+        schema = self.schema.without_alias()
         query = (QueryBuilder()
                  .append("DELETE FROM " + schema.table_name)
                  .append(QueryGenerator.generate_where_with_pk(schema, primaryKey)))

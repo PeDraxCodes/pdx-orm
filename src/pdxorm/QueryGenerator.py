@@ -1,8 +1,10 @@
+from typing import Any
+
 from .AbstractSchema import AbstractSchema
 from .QueryBuilder import QueryBuilder
 
 
-def generate_where_with_pk(schema: AbstractSchema, pk: tuple) -> QueryBuilder:
+def generate_where_with_pk(schema: AbstractSchema, pk: tuple[Any]) -> QueryBuilder:
     """
     Generates a WHERE clause based on the primary key of the schema.
     """
@@ -16,7 +18,7 @@ def generate_where_with_pk(schema: AbstractSchema, pk: tuple) -> QueryBuilder:
     return query
 
 
-def generate_query_with_pk(schema: AbstractSchema, key: list) -> QueryBuilder:
+def generate_query_with_pk(schema: AbstractSchema, key: tuple) -> QueryBuilder:
     return (
         QueryBuilder()
         .append(f"{schema.select} FROM " + schema.table_name)

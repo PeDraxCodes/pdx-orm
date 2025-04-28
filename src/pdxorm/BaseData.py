@@ -102,7 +102,7 @@ class BaseData(metaclass=ModelMeta):
         """
         Returns the meta information of the object.
         """
-        return cls.__class__._meta
+        return cls._meta
 
     def get_as_db_name(self, db_colum: str) -> Any:
         """
@@ -130,7 +130,11 @@ class BaseData(metaclass=ModelMeta):
             else:
                 value = getattr(self, field.field_name)
                 if field.db_field_name in columns:
-                    values.append(value)
+                    if isinstance(value, BaseData):
+                        value = value.flattened_primary_key
+                        values.extend(value)
+                    else:
+                        values.append(value)
         return values
 
     def json(self) -> str:
