@@ -97,13 +97,21 @@ class StubVisitor(ast.NodeVisitor):
         params = []
         for arg in node.args.args:
             param_type = self._format_type_hint(arg.annotation) if arg.annotation else "Any"
-            params.append(f"{arg.arg}: {param_type}")
+            if arg.arg == "self":
+                params.append(f"{arg.arg}")
+            else:
+                params.append(f"{arg.arg}: {param_type}")
 
         # Rückgabewert
         return_type = self._format_type_hint(node.returns) if node.returns else "None"
 
         # Funktionsdefinition für den Stub-Body
-        func_stub = f"def {func_name}(\n    " + ",\n    ".join(params) + "\n) -> {return_type}: ..."
+        decorator = ""
+        if node.decorator_list:
+            decorator = f"    @{node.decorator_list[0].id}\n"
+
+        func_stub = f"{decorator}    def {func_name}(    \n            " + ",            \n    ".join(
+            params) + f"\n    ) -> {return_type}: ..."
         self.functions_defs.append(func_stub)
 
     def visit_ClassDef(self, node: ast.ClassDef):
@@ -177,7 +185,7 @@ class StubVisitor(ast.NodeVisitor):
 
         self.stub_parts.append(class_stub)
         # Besuche keine Kinder von passenden Klassen mehr, da wir alles verarbeitet haben
-        # self.generic_visit(node) # Auskommentiert
+        self.generic_visit(node)  # Auskommentiert
 
 
 def generate_stub_file(source_file: Path, target_file: Path, base_class_name: str):
@@ -210,6 +218,8 @@ def generate_stub_file(source_file: Path, target_file: Path, base_class_name: st
     output_content += "\"\"\"Auto-generated stub file for {} - DO NOT EDIT\"\"\"\n\n".format(source_file.name)
     output_content += "\n".join(sorted(list(visitor.imports)))
     output_content += "".join(visitor.stub_parts)
+    output_content += "\n" + "\n\n".join(visitor.functions_defs)
+    output_content += "\n"
 
     try:
         target_file.parent.mkdir(parents=True, exist_ok=True)
