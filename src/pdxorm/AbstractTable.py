@@ -4,13 +4,13 @@ from typing import Any, Type
 
 from . import QueryGenerator
 from .AbstractSchema import AbstractSchema
-from .BaseData import BaseData
 from .BaseDBOperations import BaseDBOperations
+from .BaseData import BaseData
 from .Connection import Connection
 from .DBColumn import DBColumn
 from .DBResult import DBResult
-from .logger import ORM_LOGGER_NAME
 from .QueryBuilder import QueryBuilder
+from .logger import ORM_LOGGER_NAME
 
 PrimaryKey = list[Any]
 
@@ -21,13 +21,11 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
     schema: AbstractSchema
     dataclass: Type[BaseData]
 
-    def __init__(self, schema: AbstractSchema, data_class: Type[D]):
+    def __init__(self):
         super().__init__()
-        self._schema = schema
-        self._data_class = data_class
 
     def get_all(self) -> list[D]:
-        query = f"SELECT * FROM {self._schema.table_name};"
+        query = f"SELECT * FROM {self.schema.table_name};"
 
         return self.get_data_with_query(query)
 
@@ -37,7 +35,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         """
         if not isinstance(key, list) and not isinstance(key, tuple):
             key = [key]
-        query = QueryGenerator.generate_query_with_pk(self._schema, key)
+        query = QueryGenerator.generate_query_with_pk(self.schema, key)
         result = self.get_one_or_none_with_query(query)
         if not result and not nullable:
             raise ValueError(f"No data found for key: {key}")
@@ -52,19 +50,54 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
     def _insert(self, data: D) -> None:
         column_names = self._columns_to_insert(data)
         query = (QueryBuilder()
-                 .append("INSERT INTO " + self._schema.table_name + " (" + ", ".join(column_names) + ") ")
+                 .append("INSERT INTO " + self.schema.table_name + " (" + ", ".join(column_names) + ") ")
                  .append("VALUES (" + ", ".join(["?"] * len(column_names)) + ")",
                          data.get_values_for_columns(column_names)))
 
         self.execute(query)
 
+    def exists(self, key: K) -> bool:
+        """
+        Checks if a row with the given key exists in the table.
+        """
+        if not isinstance(key, list) and not isinstance(key, tuple):
+            key = [key]
+        query = QueryGenerator.generate_query_with_pk(self.schema, key)
+        result = self.execute_select_query(query).to_item
+        return result is not None
+
+    def get_single_element(self, query: QueryBuilder | str) -> Any:
+        """
+        Returns a single element based on the provided query.
+        Raises ValueError if no data is found.
+        """
+        result = self.execute_select_query(query).to_item
+        if not result:
+            raise ValueError("No data found")
+        return result
+
+    def get_single_element_or_none(self, query: QueryBuilder | str) -> Any | None:
+        """
+        Returns a single element based on the provided query.
+        """
+        return self.execute_select_query(query).to_item
+
+    def get_list_of_elements(self, query: QueryBuilder | str) -> list[Any]:
+        """
+        Returns a list of elements based on the provided query.
+        """
+        result = self.execute_select_query(query).to_items
+        if not result:
+            return []
+        return list(map(lambda x: x[0], result))
+
     def _columns_to_insert(self, data: D) -> list[str]:
         """
         Returns the columns to be inserted into the table.
         """
-        columns = self._schema.columns
+        columns = self.schema.columns
         auto_generated = data.meta().auto_generated_fields
-        for col in self._schema.columns:
+        for col in self.schema.columns:
             if col in auto_generated and getattr(data, col) is None:
                 columns.remove(col)
         return columns
@@ -78,7 +111,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
     def _update(self, data: D) -> None:
         columns = data.meta().db_columns
         schema = self.schema.without_alias()
-        pk = self._schema.primaryKey
+        pk = self.schema.primaryKey
         column_names = [col for col in schema.columns if col not in pk]
         field_names = [columns[col].field_name for col in column_names]
         attr = data.get_values_for_columns(field_names)
@@ -94,7 +127,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         Deletes a row from the table.
         """
         assert data or key, "Either data or key must be provided"
-        if isinstance(data, self._data_class) and not key:
+        if isinstance(data, self.dataclass) and not key:
             pk = data.flattened_primary_key
         else:
             pk = data
@@ -112,7 +145,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         """
         Returns a list of data objects based on the provided query.
         """
-        foreign_key = self._data_class.meta().foreign_keys.items()
+        foreign_key = self.dataclass.meta().foreign_keys.items()
         result = self.execute_select_query(query).to_dict
         if not result:
             return []
@@ -149,7 +182,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
                 foreign_key_map = {getattr(i, referenced_schema.primaryKey[0]): i for i in foreign_key_result}
                 self._update_result_dict(result, values[0].db_field_name, foreign_key_map)
 
-        one_to_many_cols = self._data_class.meta().one_to_many_fields.items()
+        one_to_many_cols = self.dataclass.meta().one_to_many_fields.items()
 
         for col, value in one_to_many_cols:
             db_values = {row[value.db_field_name] for row in result}
@@ -164,7 +197,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
                 result_map[row_value].append(row)
             self._update_result_dict(result, value.db_field_name, result_map, default=[])
 
-        return [self._data_class.from_db_dict(row) for row in result]
+        return [self.dataclass.from_db_dict(row) for row in result]
 
     def _update_result_dict(self, result: list[dict], column: str, result_map: dict, default: Any = None):
         for row in result:
@@ -191,25 +224,25 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         if not result:
             return None
         result_as_dict = result[0]
-        for col, values in self._data_class.meta().foreign_keys.items():
+        for col, values in self.dataclass.meta().foreign_keys.items():
             key = self._get_fk_as_tuple(result_as_dict, values)
             resolved_value = values[0].reference().get_one(key, nullable=True)
             result_as_dict[col] = resolved_value
 
-        for col, values in self._data_class.meta().one_to_many_fields.items():
+        for col, values in self.dataclass.meta().one_to_many_fields.items():
             key = result_as_dict[values.db_field_name]
             query = QueryBuilder().append(f"{values.referenced_column} = ?;", (key,))
             resolved_value = values.reference().get_data_with_where(query)
             result_as_dict[values.db_field_name] = resolved_value or []
 
-        return self._data_class.from_db_dict(result_as_dict)
+        return self.dataclass.from_db_dict(result_as_dict)
 
     def get_data_with_where(self, query: QueryBuilder | str) -> list[D]:
         """
         Returns a list of data objects based on the provided query where clause.
         """
         query = (QueryBuilder()
-                 .append(f"SELECT * FROM {self._schema.table_name_no_alias} WHERE")
+                 .append(f"SELECT * FROM {self.schema.table_name_no_alias} WHERE")
                  .append(query))
         return self.get_data_with_query(query)
 
@@ -218,7 +251,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         Returns a single row based on the provided query where clause.
         """
         query = (QueryBuilder()
-                 .append(f"SELECT * FROM {self._schema.table_name_no_alias} WHERE")
+                 .append(f"SELECT * FROM {self.schema.table_name_no_alias} WHERE")
                  .append(query))
         return self.get_one_with_query(query)
 
