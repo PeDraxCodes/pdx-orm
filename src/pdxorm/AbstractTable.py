@@ -113,12 +113,12 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         schema = self.schema.without_alias()
         pk = self.schema.primaryKey
         column_names = [col for col in schema.columns if col not in pk]
-        field_names = [columns[col].field_name for col in column_names]
+        field_names = [columns[col].db_field_name for col in column_names]
         attr = data.get_values_for_columns(field_names)
         query = (QueryBuilder()
                  .append("UPDATE " + schema.table_name)
                  .append("SET " + ", ".join([f"{col} = ?" for col in column_names]), attr)
-                 .append(QueryGenerator.generate_where_with_pk(schema, data.primary_key)))
+                 .append(QueryGenerator.generate_where_with_pk(schema, data.flattened_primary_key)))
 
         self.execute(query)
 
@@ -130,7 +130,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         if isinstance(data, self.dataclass) and not key:
             pk = data.flattened_primary_key
         else:
-            pk = data
+            pk = key
         self._delete(pk)
 
     def _delete(self, primaryKey: K) -> None:

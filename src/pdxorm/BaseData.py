@@ -20,10 +20,10 @@ class BaseData(metaclass=ModelMeta):
             value = kwargs.get(field_name, default_value)
             if isinstance(value, dict):
                 # Wenn der Wert ein Dictionary ist, konvertiere ihn in das richtige Format
-                value = field_obj.reference.data(**value)
+                value = field_obj.reference.dataclass(**value)
             if isinstance(value, list):
                 # Wenn der Wert eine Liste ist, konvertiere ihn in die richtige Form
-                value = [field_obj.reference.data(**item) if isinstance(item, dict) else item for item in value]
+                value = [field_obj.reference.dataclass(**item) if isinstance(item, dict) else item for item in value]
             setattr(self, field_name, value)
 
         self.validate_types()
@@ -115,6 +115,8 @@ class BaseData(metaclass=ModelMeta):
     def get_values_for_columns(self, columns: list[str]) -> list[Any]:
         """
         Returns the values for the given columns.
+        Args:
+            columns: A list of database column names to get values for.
         """
         values: list[Any] = []
         for field in self._meta.fields.values():
@@ -147,4 +149,14 @@ class BaseData(metaclass=ModelMeta):
         """
         Returns a JSON representation of the object as a dictionary.
         """
-        return {k: getattr(self, k) for k in self._meta.fields.keys()}
+        return {k: self._dict_or_elem(getattr(self, k)) for k in self._meta.fields.keys()}
+
+    def _dict_or_elem(self, obj: Any):  # noqa: ANN202
+        if isinstance(obj, list):
+            return [self._dict_or_elem(x) for x in obj]
+        elif isinstance(obj, BaseData):
+            return obj.json_as_dict()
+        elif isinstance(obj, dict):
+            return {k: self._dict_or_elem(v) for k, v in obj.items()}
+        else:
+            return obj
