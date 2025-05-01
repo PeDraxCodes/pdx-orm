@@ -139,13 +139,13 @@ class BaseData(metaclass=ModelMeta):
                         values.append(value)
         return values
 
-    def json(self) -> str:
+    def as_json(self) -> str:
         """
         Returns a JSON representation of the object.
         """
-        return json.dumps(self.json_as_dict())
+        return json.dumps(self.as_dict(), indent=2, default=str)
 
-    def json_as_dict(self) -> dict:
+    def as_dict(self) -> dict:
         """
         Returns a JSON representation of the object as a dictionary.
         """
@@ -155,7 +155,7 @@ class BaseData(metaclass=ModelMeta):
         if isinstance(obj, list):
             return [self._dict_or_elem(x) for x in obj]
         elif isinstance(obj, BaseData):
-            return obj.json_as_dict()
+            return obj.as_dict()
         elif isinstance(obj, dict):
             return {k: self._dict_or_elem(v) for k, v in obj.items()}
         else:

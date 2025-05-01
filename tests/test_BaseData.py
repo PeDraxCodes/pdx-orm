@@ -46,28 +46,28 @@ class BaseDataTest(unittest.TestCase):
 
     def test_json(self):
         self.assertEqual(
-            self.test_data.json(),
+            self.test_data.as_json(),
             '{"x": 1, "y": "test", "z": "hallo"}'
         )
         self.assertEqual(
-            self.test_data2.json(),
+            self.test_data2.as_json(),
             '{"x": 2, "y": "test2", "z": "sdfsd"}'
         )
 
     def test_json_with_fk(self):
         self.assertEqual(
-            self.test_with_fk.json(),
+            self.test_with_fk.as_json(),
             '{"id": 1, "name": "tum tum tum", "foreign_key": {"id": 1, "name": "test"}}'
         )
 
     def test_load_from_json(self):
         import json
-        data = TestData(**json.loads(self.test_data.json()))
+        data = TestData(**json.loads(self.test_data.as_json()))
         self.assertEqual(data.x, 1)
         self.assertEqual(data.y, "test")
         self.assertEqual(data.z, "hallo")
 
-        data2 = newTestData(**json.loads(self.test_with_fk.json()))
+        data2 = newTestData(**json.loads(self.test_with_fk.as_json()))
         self.assertEqual(data2.id, 1)
         self.assertEqual(data2.name, "tum tum tum")
         self.assertEqual(data2.foreign_key.id, 1)
@@ -93,7 +93,7 @@ class BaseDataTest(unittest.TestCase):
             foreign_key={"id": 3, "name": "nested foreign key"}
         )
         self.assertEqual(
-            nested_fk.json(),
+            nested_fk.as_json(),
             '{"id": 2, "name": "nested test", "foreign_key": {"id": 3, "name": "nested foreign key"}}'
         )
 
