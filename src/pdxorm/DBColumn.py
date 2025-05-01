@@ -1,5 +1,7 @@
 from typing import Any, Optional, Type
 
+from pdxorm import AbstractTable
+
 
 class DBColumn:
     """
@@ -25,3 +27,7 @@ class DBColumn:
         self.default_value = default_value
         self.auto_generated = auto_generated
         self.referenced_column = referenced_column
+
+    def __repr__(self) -> str:
+        return f"DBColumn(field_name={self.field_name}, db_field_name={self.db_field_name}, nullable={self.nullable}, " \
+               f"reference={self.reference}, primary_key={self.primary_key}, default_value={self.default_value})"

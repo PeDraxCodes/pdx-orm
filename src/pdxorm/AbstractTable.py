@@ -89,7 +89,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         result = self.execute_select_query(query).to_items
         if not result:
             return []
-        return list(map(lambda x: x[0], result))
+        return result
 
     def _columns_to_insert(self, data: D) -> list[str]:
         """
