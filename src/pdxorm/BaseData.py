@@ -3,6 +3,13 @@ import typing
 from typing import Any
 
 from .ModelMeta import MetaInformation, ModelMeta
+from .utils import get_first_or_element
+
+
+class LazyField:
+    def __init__(self, db_value: Any, reference: Any):
+        self.db_value = db_value
+        self.reference = reference
 
 
 class BaseData(metaclass=ModelMeta):
