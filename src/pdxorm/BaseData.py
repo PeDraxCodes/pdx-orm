@@ -93,15 +93,12 @@ class BaseData(metaclass=ModelMeta):
     @property
     def flattened_primary_key(self) -> tuple:
         """
-        Returns the primary key of the object as a flattened list.
+        Returns the primary key of the object as a database representation.
         """
         key = []
-        for k in self.primary_key:
-            if isinstance(k, BaseData):
-                key.extend(k.flattened_primary_key)
-            else:
-                key.append(k)
 
+        for field in self._meta.primary_keys:
+            key.extend(self.get_db_value(field.field_name))
         return tuple(key)
 
     @classmethod
@@ -113,13 +110,32 @@ class BaseData(metaclass=ModelMeta):
 
     def get_as_db_name(self, db_colum: str) -> Any:
         """
+        Arguments:
+            db_colum: The database column name to get the value for.
         Returns the value of the object as a database name.
         """
         if db_colum not in self._meta.db_columns:
             raise ValueError(f"Column {db_colum} not found in meta information")
         return getattr(self, self._meta.db_columns[db_colum].field_name)
 
-    def get_values_for_columns(self, columns: list[str]) -> list[Any]:
+    def get_db_value(self, attribute: str) -> tuple[Any, ...]:
+        """
+        Arguments:
+            attribute: The attribute name to get the value for.
+        Returns the value of the object as a database value.
+        """
+        if attribute not in self._meta.fields:
+            raise ValueError(f"Column {attribute} not found in meta information")
+        value = self.__dict__[attribute]
+        if isinstance(value, LazyField):
+            return (value.db_value,)
+        if isinstance(value, BaseData):
+            return value.flattened_primary_key
+        if isinstance(value, list):
+            return tuple([x.flattened_primary_key if isinstance(x, BaseData) else x for x in value])
+        return (value,)
+
+    def get_values_for_columns(self, columns: list[str] | set[str]) -> list[Any]:
         """
         Returns the values for the given columns.
         Args:
