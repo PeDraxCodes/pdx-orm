@@ -14,7 +14,8 @@ _transaction_depth_var = contextvars.ContextVar("db_transaction_depth", default=
 
 
 class Connection:
-    def __init__(self):
+    def __init__(self, foreign_keys: bool = True):
+        self.foreign_keys = int(foreign_keys)
         self.conn = None
 
     def __enter__(self) -> sqlite3.Connection:
@@ -25,6 +26,7 @@ class Connection:
             _transaction_depth_var.set(current_depth + 1)
         else:
             self.conn = sqlite3.connect(settings.DB_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
+            self.conn.execute(f"PRAGMA foreign_keys = {self.foreign_keys}")
             self.conn.execute("BEGIN TRANSACTION")
             _current_connection_var.set(self.conn)
             _transaction_depth_var.set(1)
