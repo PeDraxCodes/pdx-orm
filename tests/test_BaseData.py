@@ -46,18 +46,18 @@ class BaseDataTest(unittest.TestCase):
 
     def test_json(self):
         self.assertEqual(
-            self.test_data.as_json(),
-            '{"x": 1, "y": "test", "z": "hallo"}'
+            self.test_data.as_json(indent=0).replace("\n", ""),
+            '{"x": 1,"y": "test","z": "hallo"}'
         )
         self.assertEqual(
-            self.test_data2.as_json(),
-            '{"x": 2, "y": "test2", "z": "sdfsd"}'
+            self.test_data2.as_json(indent=0).replace("\n", ""),
+            '{"x": 2,"y": "test2","z": "sdfsd"}'
         )
 
     def test_json_with_fk(self):
         self.assertEqual(
-            self.test_with_fk.as_json(),
-            '{"id": 1, "name": "tum tum tum", "foreign_key": {"id": 1, "name": "test"}}'
+            self.test_with_fk.as_json(indent=0).replace("\n", ""),
+            '{"id": 1,"name": "tum tum tum","foreign_key": {"id": 1,"name": "test"}}'
         )
 
     def test_load_from_json(self):
@@ -93,8 +93,8 @@ class BaseDataTest(unittest.TestCase):
             foreign_key={"id": 3, "name": "nested foreign key"}
         )
         self.assertEqual(
-            nested_fk.as_json(),
-            '{"id": 2, "name": "nested test", "foreign_key": {"id": 3, "name": "nested foreign key"}}'
+            nested_fk.as_json(indent=0).replace("\n", ""),
+            '{"id": 2,"name": "nested test","foreign_key": {"id": 3,"name": "nested foreign key"}}'
         )
 
     def test_flattened_primary_key_handles_nested_keys(self):
@@ -109,7 +109,7 @@ class BaseDataTest(unittest.TestCase):
         )
 
     def test_from_db_dict_converts_correctly(self):
-        db_dict = {"id": 1, "name": "test", "foreign_key": {"id": 2, "name": "fk"}}
+        db_dict = {"id": 1, "name": "test", "foreign_key": ForeignKeyData(**{"id": 2, "name": "fk"})}
         obj = newTestData.from_db_dict(db_dict)
         self.assertEqual(obj.id, 1)
         self.assertEqual(obj.name, "test")
@@ -140,6 +140,6 @@ class BaseDataTest(unittest.TestCase):
         values = self.test_with_fk.get_values_for_columns(columns)
         self.assertEqual(values, [1, 1])
 
-        columns = ["non_existing_column"]
-        values = self.test_data.get_values_for_columns(columns)
-        self.assertEqual(values, [])
+        with self.assertRaises(ValueError):
+            columns = ["non_existing_column"]
+            values = self.test_data.get_values_for_columns(columns)

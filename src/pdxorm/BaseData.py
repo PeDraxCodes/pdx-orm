@@ -64,6 +64,7 @@ class BaseData(metaclass=ModelMeta):
     def from_db_dict(cls, db_dict: dict) -> "BaseData":
         """
         Converts a dictionary from the database to an instance of the class.
+        No dict nesting allowed only other instances of BaseData
         """
         new_dict = {}
         for field_name, field_obj in cls.meta().fields.items():
@@ -178,6 +179,8 @@ class BaseData(metaclass=ModelMeta):
         values: list[Any] = []
         already_seen: set[Any] = set()
         for col in columns:
+            if col not in self._meta.db_columns:
+                raise ValueError(f"Column {col} not found in meta information")
             attr_name = self.meta().db_columns[col].field_name
             if attr_name in already_seen:
                 continue
@@ -186,11 +189,11 @@ class BaseData(metaclass=ModelMeta):
 
         return values
 
-    def as_json(self) -> str:
+    def as_json(self, indent: int = 2, default: Any = str) -> str:
         """
         Returns a JSON representation of the object.
         """
-        return json.dumps(self.as_dict(), indent=2, default=str)
+        return json.dumps(self.as_dict(), indent=indent, default=default)
 
     def as_dict(self) -> dict:
         """
