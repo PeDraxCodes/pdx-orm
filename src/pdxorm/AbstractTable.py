@@ -67,14 +67,14 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         result = self.execute_select_query(query).to_item
         return result is not None
 
-    def get_single_element(self, query: QueryBuilder | str) -> Any:
+    def get_single_element(self, query: QueryBuilder | str, nullable: bool = False) -> Any:
         """
         Returns a single element based on the provided query.
         Raises ValueError if no data is found.
         """
         result = self.execute_select_query(query).to_item
-        if not result:
-            raise ValueError("No data found")
+        if not result and not nullable:
+            raise ValueError("No data found for the query: " + str(query))
         return result
 
     def get_single_element_or_none(self, query: QueryBuilder | str) -> Any | None:
@@ -225,13 +225,14 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
             else:
                 row[column] = default
 
-    def get_one_with_query(self, query: QueryBuilder | str, fetch_type: FetchType = FetchType.EAGER) -> D:
+    def get_one_with_query(self, query: QueryBuilder | str, nullable: bool = False,
+                           fetch_type: FetchType = FetchType.EAGER) -> D:
         """
         Returns a single row based on the provided query.
         """
         result = self.get_one_or_none_with_query(query, fetch_type)
-        if not result:
-            raise ValueError("No data found")
+        if not result and not nullable:
+            raise ValueError("No data found for the query: " + str(query))
         return result
 
     def get_one_or_none_with_query(self, query: QueryBuilder | str,
@@ -266,16 +267,17 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
                  .append(query))
         return self.get_data_with_query(query, fetch_type)
 
-    def get_one_with_where(self, query: QueryBuilder | str, fetch_type: FetchType = FetchType.EAGER) -> D:
+    def get_one_with_where(self, query: QueryBuilder | str, nullable: bool = False,
+                           fetch_type: FetchType = FetchType.EAGER) -> D:
         """
         Returns a single row based on the provided query where clause.
         """
         query = (QueryBuilder()
                  .append(f"SELECT * FROM {self.schema.table_name_no_alias} WHERE")
                  .append(query))
-        return self.get_one_with_query(query, fetch_type)
+        return self.get_one_with_query(query, nullable, fetch_type)
 
-    def get_one_with_join(self, query: QueryBuilder | str, alias: str = None,
+    def get_one_with_join(self, query: QueryBuilder | str, alias: str = None, nullable: bool = False,
                           fetch_type: FetchType = FetchType.EAGER) -> D:
         """
         Returns a single row based on the provided query with join.
@@ -283,7 +285,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         alias = alias or self.schema.alias
         whole_query = QueryBuilder().append(
             f"SELECT {alias}.* FROM {self.schema.table_name_no_alias} AS {alias}").append(query)
-        return self.get_one_with_query(whole_query, fetch_type)
+        return self.get_one_with_query(whole_query, nullable, fetch_type)
 
     @staticmethod
     def _get_fk_as_tuple(result: dict, fk: list[DBColumn]) -> tuple:
