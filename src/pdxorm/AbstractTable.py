@@ -110,18 +110,33 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         self._update(data)
 
     def _update(self, data: D) -> None:
-        columns = data.meta().db_columns
+        exisiting_data = self.get_one(data.flattened_primary_key, fetch_type=FetchType.LAZY)
+        different_columns = self._get_different_columns(data, exisiting_data)
+        if not different_columns:
+            orm_logger.info(f"Nothing to update {D.__name__} has no changes.")
+            return None
         schema = self.schema.without_alias()
-        pk = self.schema.primaryKey
-        column_names = [col for col in schema.columns if col not in pk]
-        field_names = [columns[col].db_field_name for col in column_names]
-        attr = data.get_values_for_columns(field_names)
+
+        attr = data.get_values_for_columns(different_columns)
         query = (QueryBuilder()
                  .append("UPDATE " + schema.table_name)
-                 .append("SET " + ", ".join([f"{col} = ?" for col in column_names]), attr)
+                 .append("SET " + ", ".join([f"{col} = ?" for col in different_columns]), attr)
                  .append(QueryGenerator.generate_where_with_pk(schema, data.flattened_primary_key)))
 
         self.execute(query)
+
+    def _get_different_columns(self, data1: D, data2: D) -> set[str]:
+        fields = data1.meta().fields
+        different_columns = set()
+        for k, field in fields.items():
+            if field.db_field_name in data1.meta().primary_keys:
+                continue
+            if field.auto_generated:
+                continue
+            if data1.get_db_value(k) != data2.get_db_value(k):
+                different_columns.add(field.db_field_name)
+
+        return different_columns
 
     def delete(self, data: D | K = None, key: K = None) -> None:
         """
