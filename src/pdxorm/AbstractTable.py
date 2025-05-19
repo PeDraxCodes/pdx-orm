@@ -9,6 +9,7 @@ from .BaseData import BaseData
 from .Connection import Connection
 from .DBColumn import DBColumn
 from .DBResult import DBResult
+from .OrmEnums import FetchType
 from .QueryBuilder import QueryBuilder
 from .logger import ORM_LOGGER_NAME
 
@@ -24,19 +25,19 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
     def __init__(self):
         super().__init__()
 
-    def get_all(self) -> list[D]:
+    def get_all(self, fetch_type: FetchType = FetchType.EAGER) -> list[D]:
         query = f"SELECT * FROM {self.schema.table_name};"
 
-        return self.get_data_with_query(query)
+        return self.get_data_with_query(query, fetch_type)
 
-    def get_one(self, key: K, nullable: bool = False) -> D | None:
+    def get_one(self, key: K, nullable: bool = False, fetch_type: FetchType = FetchType.EAGER) -> D | None:
         """
         Returns a single row based on the provided key.
         """
         if not isinstance(key, list) and not isinstance(key, tuple):
             key = [key]
         query = QueryGenerator.generate_query_with_pk(self.schema, key)
-        result = self.get_one_or_none_with_query(query)
+        result = self.get_one_or_none_with_query(query, fetch_type)
         if not result and not nullable:
             raise ValueError(f"No data found for key: {key}")
         return result
@@ -141,7 +142,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
 
         self.execute(query)
 
-    def get_data_with_query(self, query: QueryBuilder | str) -> list[D]:
+    def get_data_with_query(self, query: QueryBuilder | str, fetch_type: FetchType = FetchType.EAGER) -> list[D]:
         """
         Returns a list of data objects based on the provided query.
         """
@@ -149,6 +150,8 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         result = self.execute_select_query(query).to_dict
         if not result:
             return []
+        if fetch_type == FetchType.LAZY:
+            return [self.dataclass.from_db_dict(row) for row in result]
 
         for col, values in foreign_key:
             foreign_key_values = {self._get_fk_as_tuple(row, values) for row in result}
@@ -207,16 +210,17 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
             else:
                 row[column] = default
 
-    def get_one_with_query(self, query: QueryBuilder | str) -> D:
+    def get_one_with_query(self, query: QueryBuilder | str, fetch_type: FetchType = FetchType.EAGER) -> D:
         """
         Returns a single row based on the provided query.
         """
-        result = self.get_one_or_none_with_query(query)
+        result = self.get_one_or_none_with_query(query, fetch_type)
         if not result:
             raise ValueError("No data found")
         return result
 
-    def get_one_or_none_with_query(self, query: QueryBuilder | str) -> D | None:
+    def get_one_or_none_with_query(self, query: QueryBuilder | str,
+                                   fetch_type: FetchType = FetchType.EAGER) -> D | None:
         """
         Returns a single row based on the provided query.
         """
@@ -224,45 +228,47 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         if not result:
             return None
         result_as_dict = result[0]
-        for col, values in self.dataclass.meta().foreign_keys.items():
-            key = self._get_fk_as_tuple(result_as_dict, values)
-            resolved_value = values[0].reference().get_one(key, nullable=True)
-            result_as_dict[col] = resolved_value
+        if fetch_type == FetchType.EAGER:
+            for col, values in self.dataclass.meta().foreign_keys.items():
+                key = self._get_fk_as_tuple(result_as_dict, values)
+                resolved_value = values[0].reference().get_one(key, nullable=True)
+                result_as_dict[col] = resolved_value
 
-        for col, values in self.dataclass.meta().one_to_many_fields.items():
-            key = result_as_dict[values.db_field_name]
-            query = QueryBuilder().append(f"{values.referenced_column} = ?;", (key,))
-            resolved_value = values.reference().get_data_with_where(query)
-            result_as_dict[values.db_field_name] = resolved_value or []
+            for col, values in self.dataclass.meta().one_to_many_fields.items():
+                key = result_as_dict[values.db_field_name]
+                query = QueryBuilder().append(f"{values.referenced_column} = ?;", (key,))
+                resolved_value = values.reference().get_data_with_where(query)
+                result_as_dict[values.db_field_name] = resolved_value or []
 
         return self.dataclass.from_db_dict(result_as_dict)
 
-    def get_data_with_where(self, query: QueryBuilder | str) -> list[D]:
+    def get_data_with_where(self, query: QueryBuilder | str, fetch_type: FetchType = FetchType.EAGER) -> list[D]:
         """
         Returns a list of data objects based on the provided query where clause.
         """
         query = (QueryBuilder()
                  .append(f"SELECT * FROM {self.schema.table_name_no_alias} WHERE")
                  .append(query))
-        return self.get_data_with_query(query)
+        return self.get_data_with_query(query, fetch_type)
 
-    def get_one_with_where(self, query: QueryBuilder | str) -> D:
+    def get_one_with_where(self, query: QueryBuilder | str, fetch_type: FetchType = FetchType.EAGER) -> D:
         """
         Returns a single row based on the provided query where clause.
         """
         query = (QueryBuilder()
                  .append(f"SELECT * FROM {self.schema.table_name_no_alias} WHERE")
                  .append(query))
-        return self.get_one_with_query(query)
+        return self.get_one_with_query(query, fetch_type)
 
-    def get_one_with_join(self, query: QueryBuilder | str, alias: str = None) -> D:
+    def get_one_with_join(self, query: QueryBuilder | str, alias: str = None,
+                          fetch_type: FetchType = FetchType.EAGER) -> D:
         """
         Returns a single row based on the provided query with join.
         """
         alias = alias or self.schema.alias
         whole_query = QueryBuilder().append(
             f"SELECT {alias}.* FROM {self.schema.table_name_no_alias} AS {alias}").append(query)
-        return self.get_one_with_query(whole_query)
+        return self.get_one_with_query(whole_query, fetch_type)
 
     @staticmethod
     def _get_fk_as_tuple(result: dict, fk: list[DBColumn]) -> tuple:
