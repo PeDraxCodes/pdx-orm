@@ -305,9 +305,9 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         """
         Executes a query (INSERT, UPDATE, DELETE) and returns the result.
         """
+        orm_logger.info("DML-STATEMENT: %s", str(query))
         if isinstance(query, QueryBuilder):
             params = query.params
             query = query.query
         with Connection() as db:
-            orm_logger.info("DML-STATEMENT: %s", query)
             db.execute(query, params)

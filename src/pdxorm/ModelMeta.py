@@ -5,7 +5,7 @@ from pdxorm.DBColumn import DBColumn
 
 @dataclass
 class MetaInformation:
-    fields: dict[str, DBColumn]  # Dict from {model_attr: Field_instance}
+    fields: dict[str, DBColumn | list[DBColumn]]  # Dict from {model_attr: Field_instance}
     db_columns: dict[str, DBColumn]  # Map from {db_column_name: Field_instance}
     primary_keys: list[DBColumn]  # List of primary key fields
     foreign_keys: dict[str, list[DBColumn]]  # Map from {model_attr: [Field_instance]}
