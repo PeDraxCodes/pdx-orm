@@ -3,7 +3,7 @@ import typing
 from typing import Any
 
 from .ModelMeta import MetaInformation, ModelMeta
-from .utils import get_first_or_element
+from .utils import get_as_tuple, get_first_or_element
 
 
 class LazyField:
@@ -15,7 +15,7 @@ class LazyField:
 class BaseData(metaclass=ModelMeta):
     def __init__(self, **kwargs):
         self._meta: MetaInformation = self.__class__._meta  # Zugriff auf die Metadaten der Klasse
-        self._data = {}  # Hier könnten die aktuellen Werte der Instanz gespeichert werden
+        self._data = kwargs.get("date_from_db_raw", None)  # Raw-Data from db if given
         self._loaded_from_db = False  # Flag, ob das Objekt aus der DB kommt
 
         for field_name, field_obj in self._meta.fields.items():
@@ -31,32 +31,63 @@ class BaseData(metaclass=ModelMeta):
             if isinstance(value, list):
                 # Wenn der Wert eine Liste ist, konvertiere ihn in die richtige Form
                 value = [field_obj.reference.dataclass(**item) if isinstance(item, dict) else item for item in value]
+
+            if value is not None and not isinstance(value, LazyField) and get_first_or_element(
+                    field_obj).reference and not self._is_type_or_list_type(value, BaseData):
+                value = LazyField(value, get_first_or_element(field_obj).reference)
             setattr(self, field_name, value)
 
         self.validate_types()
 
     def __repr__(self):
-        # Gibt eine lesbare Darstellung des Objekts zurück
         field_values = ', '.join(f"{k}={getattr(self, k)}" for k in self._meta.fields.keys())
         return f"{self.__class__.__name__}({field_values})"
 
     def __eq__(self, other: object) -> bool:
-        # Vergleicht zwei Objekte basierend auf den Werten der Felder
         if not isinstance(other, self.__class__):
             return False
+        if self.flattened_primary_key != other.flattened_primary_key:
+            return False
         for field_name in self._meta.fields.keys():
-            if getattr(self, field_name) != getattr(other, field_name):
+            if self.get_db_value(field_name) != other.get_db_value(field_name):
                 return False
         return True
+
+    def __getattribute__(self, name: str) -> Any:
+        value = object.__getattribute__(self, name)
+        if isinstance(value, LazyField):
+            # calculate LAZY fetch
+            raise AttributeError
+        return value
 
     @classmethod
     def from_db_dict(cls, db_dict: dict) -> "BaseData":
         """
         Converts a dictionary from the database to an instance of the class.
         """
-        db_columns = cls.meta().db_columns
-        new_dict = {db_columns[k].field_name: v for k, v in db_dict.items()}
-        return cls(**new_dict)
+        new_dict = {}
+        for field_name, field_obj in cls.meta().fields.items():
+            if isinstance(field_obj, list):
+                value = db_dict.get(field_obj[0].db_field_name, None)
+                reference = field_obj[0].reference
+            else:
+                value = db_dict.get(field_obj.db_field_name, None)
+                reference = field_obj.reference
+
+            if reference and value is not None and not cls._is_type_or_list_type(value, reference.dataclass):
+                new_dict[field_name] = LazyField(value, reference)
+            else:
+                new_dict[field_name] = value
+        return cls(**new_dict, date_from_db_raw=db_dict)
+
+    @staticmethod
+    def _is_type_or_list_type(value: Any, expected_type: Any) -> bool:
+        """
+        Check if the value is of the expected type or a list of the expected type.
+        """
+        if isinstance(value, list):
+            return all(isinstance(item, expected_type) for item in value)
+        return isinstance(value, expected_type)
 
     def validate_types(self):
         # check types referenced in the annotations
@@ -64,8 +95,9 @@ class BaseData(metaclass=ModelMeta):
         for name, expected_type in self.__annotations__.items():
             origin = typing.get_origin(expected_type)
             args = typing.get_args(expected_type)
-            value = getattr(self, name)
-
+            value = self.__dict__[name]
+            if isinstance(value, LazyField):
+                continue
             if origin is typing.Literal:
                 continue
             if not all(not isinstance(value, list) for _ in args):
@@ -127,6 +159,8 @@ class BaseData(metaclass=ModelMeta):
         if attribute not in self._meta.fields:
             raise ValueError(f"Column {attribute} not found in meta information")
         value = self.__dict__[attribute]
+        if value is None:
+            return (None,) * len(get_as_tuple(self._meta.fields[attribute]))
         if isinstance(value, LazyField):
             return (value.db_value,)
         if isinstance(value, BaseData):
@@ -142,24 +176,14 @@ class BaseData(metaclass=ModelMeta):
             columns: A list of database column names to get values for.
         """
         values: list[Any] = []
-        for field in self._meta.fields.values():
-            if isinstance(field, list):
-                value = getattr(self, field[0].field_name)
-                if value is None:
-                    values.extend([None] * len(field))
-                    continue
-                value = value.flattened_primary_key
-                if not all(x.db_field_name in columns for x in field):
-                    continue
-                values.extend(value)
-            else:
-                value = getattr(self, field.field_name)
-                if field.db_field_name in columns:
-                    if isinstance(value, BaseData):
-                        value = value.flattened_primary_key
-                        values.extend(value)
-                    else:
-                        values.append(value)
+        already_seen: set[Any] = set()
+        for col in columns:
+            attr_name = self.meta().db_columns[col].field_name
+            if attr_name in already_seen:
+                continue
+            already_seen.add(attr_name)
+            values.extend(self.get_db_value(attr_name))
+
         return values
 
     def as_json(self) -> str:
