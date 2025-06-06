@@ -12,13 +12,14 @@ class LazyField:
         self.reference = reference
 
 
-class BaseData(metaclass=ModelMeta):
+class BaseData[K: tuple](metaclass=ModelMeta):
     def __init__(self, **kwargs):
         self._meta: MetaInformation = self.__class__._meta  # Zugriff auf die Metadaten der Klasse
         self._data = kwargs.get("date_from_db_raw", None)  # Raw-Data from db if given
         self._loaded_from_db = False  # Flag, ob das Objekt aus der DB kommt
 
         for field_name, field_obj in self._meta.fields.items():
+            field_obj = get_first_or_element(field_obj)
             # Setze Standardwerte oder übergebene Werte
             if isinstance(field_obj, list):
                 default_value = None
@@ -46,7 +47,7 @@ class BaseData(metaclass=ModelMeta):
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             return False
-        if self.flattened_primary_key != other.flattened_primary_key:
+        if self.pk != other.pk:
             return False
         for field_name in self._meta.fields.keys():
             if self.get_db_value(field_name) != other.get_db_value(field_name):
@@ -124,7 +125,7 @@ class BaseData(metaclass=ModelMeta):
         return tuple(getattr(self, field.field_name) for field in self._meta.primary_keys)
 
     @property
-    def flattened_primary_key(self) -> tuple:
+    def pk(self) -> K:
         """
         Returns the primary key of the object as a database representation.
         """
@@ -165,9 +166,9 @@ class BaseData(metaclass=ModelMeta):
         if isinstance(value, LazyField):
             return (value.db_value,)
         if isinstance(value, BaseData):
-            return value.flattened_primary_key
+            return value.pk
         if isinstance(value, list):
-            return tuple([x.flattened_primary_key if isinstance(x, BaseData) else x for x in value])
+            return tuple([x.pk if isinstance(x, BaseData) else x for x in value])
         return (value,)
 
     def get_values_for_columns(self, columns: list[str] | set[str]) -> list[Any]:
@@ -210,3 +211,9 @@ class BaseData(metaclass=ModelMeta):
             return {k: self._dict_or_elem(v) for k, v in obj.items()}
         else:
             return obj
+
+    def copy(self) -> typing.Self:
+        """
+        Returns a copy of the object.
+        """
+        return self.__class__(**self.as_dict(), date_from_db_raw=self._data)

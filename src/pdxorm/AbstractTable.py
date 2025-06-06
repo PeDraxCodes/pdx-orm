@@ -13,7 +13,6 @@ from .OrmEnums import FetchType
 from .QueryBuilder import QueryBuilder
 from .logger import ORM_LOGGER_NAME
 
-PrimaryKey = list[Any]
 
 orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
@@ -110,7 +109,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         self._update(data)
 
     def _update(self, data: D) -> None:
-        exisiting_data = self.get_one(data.flattened_primary_key, fetch_type=FetchType.LAZY)
+        exisiting_data = self.get_one(data.pk, fetch_type=FetchType.LAZY)
         different_columns = self._get_different_columns(data, exisiting_data)
         if not different_columns:
             orm_logger.info(f"Nothing to update {D.__name__} has no changes.")
@@ -121,7 +120,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         query = (QueryBuilder()
                  .append("UPDATE " + schema.table_name)
                  .append("SET " + ", ".join([f"{col} = ?" for col in different_columns]), attr)
-                 .append(QueryGenerator.generate_where_with_pk(schema, data.flattened_primary_key)))
+                 .append(QueryGenerator.generate_where_with_pk(schema, data.pk)))
 
         self.execute(query)
 
@@ -144,7 +143,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         """
         assert data or key, "Either data or key must be provided"
         if isinstance(data, self.dataclass) and not key:
-            pk = data.flattened_primary_key
+            pk = data.pk
         else:
             pk = key
         self._delete(pk)
@@ -186,7 +185,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
 
             if len(foreign_primary_key) > 1:
                 for i in foreign_key_result:
-                    lookup_map[i.flattened_primary_key] = i
+                    lookup_map[i.pk] = i
                 for row in result:
                     row_value = self._get_fk_as_tuple(row, values)
 

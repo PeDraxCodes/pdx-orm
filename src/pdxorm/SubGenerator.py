@@ -121,7 +121,7 @@ class StubVisitor(ast.NodeVisitor):
         for base in node.bases:
             base_name = self._format_type_hint(base)  # Formatierung wiederverwenden
             base_names.append(base_name)
-            if base_name == self.base_class_name:
+            if base_name.startswith(self.base_class_name):
                 inherits_from_base = True
 
         if not inherits_from_base:

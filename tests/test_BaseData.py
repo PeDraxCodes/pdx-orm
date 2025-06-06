@@ -104,7 +104,7 @@ class BaseDataTest(unittest.TestCase):
             foreign_key={"id": 3, "name": "nested foreign key"}
         )
         self.assertEqual(
-            nested_fk.flattened_primary_key,
+            nested_fk.pk,
             (2,)
         )
 
