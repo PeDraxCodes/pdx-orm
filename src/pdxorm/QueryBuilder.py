@@ -52,7 +52,7 @@ class QueryBuilder:
             raise ValueError("IN clause cannot be empty")
         if isinstance(values[0], tuple) or isinstance(values[0], list):
             placeholders = ", ".join(["(" + ", ".join(["?"] * len(v)) + ")" for v in values])
-            params = self._flattern(values)
+            params = self._flatten(values)
         else:
             placeholders = ", ".join(["?"] * len(values))
             params = values
@@ -94,7 +94,7 @@ class QueryBuilder:
         self._params.extend(query._params)
         return self
 
-    def _flattern(self, lst: list) -> list:
+    def _flatten(self, lst: list) -> list:
         """
         Flattens a list of lists into a single list.
         :param lst: The list to flatten.
