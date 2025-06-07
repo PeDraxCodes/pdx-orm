@@ -293,7 +293,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
             key.append(result[value.db_field_name])
         return tuple(key)
 
-    def execute_select_query(self, query: QueryBuilder | str, params: list | None = None) -> DBResult:
+    def execute_select_query(self, query: QueryBuilder | str, params:  list | tuple | None = None) -> DBResult:
         """
         Executes a SELECT query and returns the result.
         """
