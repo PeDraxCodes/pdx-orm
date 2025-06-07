@@ -112,7 +112,6 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         exisiting_data = self.get_one(data.pk, fetch_type=FetchType.LAZY)
         different_columns = self._get_different_columns(data, exisiting_data)
         if not different_columns:
-            orm_logger.info(f"Nothing to update {D.__name__} has no changes.")
             return None
         schema = self.schema.without_alias()
 
@@ -160,8 +159,12 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         """
         Returns a list of data objects based on the provided query.
         """
-        foreign_key = self.dataclass.meta().foreign_keys.items()
         result = self.execute_select_query(query).to_dict
+        return self._parse_db_result_to_dataclass(result, fetch_type)
+
+    def _parse_db_result_to_dataclass(self, result: list[dict], fetch_type: FetchType) -> list[D]:
+        foreign_key = self.dataclass.meta().foreign_keys.items()
+
         if not result:
             return []
         if fetch_type == FetchType.LAZY:
@@ -293,7 +296,7 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
             key.append(result[value.db_field_name])
         return tuple(key)
 
-    def execute_select_query(self, query: QueryBuilder | str, params:  list | tuple | None = None) -> DBResult:
+    def execute_select_query(self, query: QueryBuilder | str, params: list | tuple | None = None) -> DBResult:
         """
         Executes a SELECT query and returns the result.
         """
@@ -310,5 +313,6 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         if isinstance(query, QueryBuilder):
             params = query.params
             query = query.query
+
         with Connection() as db:
             db.execute(query, params)

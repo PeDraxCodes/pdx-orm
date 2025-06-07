@@ -60,6 +60,18 @@ class QueryBuilder:
         query = f"IN ({placeholders})"
         return self.append(query, params)
 
+    def appendInParentheses(self, query: Self) -> Self:
+        """
+        Appends a query in parentheses to the current query.
+        """
+        if not isinstance(query, QueryBuilder):
+            raise TypeError("Expected a QueryBuilder instance")
+
+        self._query.append(f"(")
+        self.append(query)
+        self._query.append(")")
+        return self
+
     def __str__(self) -> str:
         """
         Returns the current query as a string.

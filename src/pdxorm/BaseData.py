@@ -172,6 +172,21 @@ class BaseData[K: tuple](metaclass=ModelMeta):
             return tuple([x.pk if isinstance(x, BaseData) else x for x in value])
         return (value,)
 
+    def set_db_value(self, attribute: str, value: Any) -> None:
+        """
+        Sets the value of the object for the given attribute.
+        Args:
+            attribute: The attribute name to set the value for.
+            value: The value to set.
+        """
+        if attribute not in self._meta.fields:
+            raise ValueError(f"Column {attribute} not found in meta information")
+        if isinstance(value, LazyField):
+            value = value.db_value
+        if isinstance(value, BaseData) or self._meta.db_columns[attribute].reference:
+            value = LazyField(value, self._meta.db_columns[attribute].reference)
+        self.__dict__[attribute] = value
+
     def get_values_for_columns(self, columns: list[str] | set[str]) -> list[Any]:
         """
         Returns the values for the given columns.
