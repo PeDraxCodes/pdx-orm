@@ -92,30 +92,31 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         return isinstance(value, expected_type)
 
     def validate_types(self):
-        # check types referenced in the annotations
-
+        """
+        Validates the types of the attributes of the object. (AI)
+        """
         for name, expected_type in self.__annotations__.items():
             origin = typing.get_origin(expected_type)
             args = typing.get_args(expected_type)
             value = self.__dict__[name]
             if isinstance(value, LazyField):
                 continue
-            if origin is typing.Literal:
-                continue
-            if not all(not isinstance(value, list) for _ in args):
+            if value is None:
                 continue
 
-            if origin is typing.Union and type(None) in args:  # Optional-Typ
+            if origin is typing.Union and type(None) in args:  # Optional types
                 non_none_args = tuple(arg for arg in args if arg is not type(None))
                 isvalid = isinstance(value, non_none_args) or value is None
-            elif origin:  # Andere generische Typen
+            elif origin is typing.Literal: # Literal types
+                isvalid = value in args
+            elif origin:  # Other generic types
                 isvalid = isinstance(value, origin)
-            else:  # Standardtypen
-                isvalid = isinstance(value, expected_type) or not (
-                        expected_type is type(bool) and isinstance(value, int))
+            else:  # Simple types
+                isvalid_boolean_int = expected_type is bool and isinstance(value, int) and value in (0, 1)  # Allow int to be used as boolean
+                isvalid = isinstance(value, expected_type) or isvalid_boolean_int
 
             if not isvalid:
-                raise TypeError(f"Type of {name} is not {expected_type}, but {type(value)}")
+                raise TypeError(f"Type of {name} is not {expected_type}, but {type(value)}: {value}")
 
     @property
     def primary_key(self) -> tuple:
