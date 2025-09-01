@@ -49,10 +49,11 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
 
     def _insert(self, data: D) -> None:
         column_names = self._columns_to_insert(data)
-        query = (QueryBuilder()
-                 .append("INSERT INTO " + self.schema.table_name + " (" + ", ".join(column_names) + ") ")
-                 .append("VALUES (" + ", ".join(["?"] * len(column_names)) + ")",
-                         data.get_values_for_columns(column_names)))
+        query = (
+            QueryBuilder()
+            .append("INSERT INTO " + self.schema.table_name + " (" + ", ".join(column_names) + ") ")
+            .append("VALUES (" + ", ".join(["?"] * len(column_names)) + ")", data.get_values_for_columns(column_names))
+        )
 
         self.execute(query)
 
@@ -109,17 +110,19 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         self._update(data)
 
     def _update(self, data: D) -> None:
-        exisiting_data = self.get_one(data.pk, fetch_type=FetchType.LAZY)
-        different_columns = self._get_different_columns(data, exisiting_data)
+        existing_data = self.get_one(data.pk, fetch_type=FetchType.LAZY)
+        different_columns = self._get_different_columns(data, existing_data)
         if not different_columns:
-            return None
+            return
         schema = self.schema.without_alias()
 
         attr = data.get_values_for_columns(different_columns)
-        query = (QueryBuilder()
-                 .append("UPDATE " + schema.table_name)
-                 .append("SET " + ", ".join([f"{col} = ?" for col in different_columns]), attr)
-                 .append(QueryGenerator.generate_where_with_pk(schema, data.pk)))
+        query = (
+            QueryBuilder()
+            .append("UPDATE " + schema.table_name)
+            .append("SET " + ", ".join([f"{col} = ?" for col in different_columns]), attr)
+            .append(QueryGenerator.generate_where_with_pk(schema, data.pk))
+        )
 
         self.execute(query)
 
@@ -147,11 +150,13 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
             pk = key
         self._delete(pk)
 
-    def _delete(self, primaryKey: K) -> None:
+    def _delete(self, primary_key: K) -> None:
         schema = self.schema.without_alias()
-        query = (QueryBuilder()
-                 .append("DELETE FROM " + schema.table_name)
-                 .append(QueryGenerator.generate_where_with_pk(schema, primaryKey)))
+        query = (
+            QueryBuilder()
+            .append("DELETE FROM " + schema.table_name)
+            .append(QueryGenerator.generate_where_with_pk(schema, primary_key))
+        )
 
         self.execute(query)
 
@@ -177,10 +182,12 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
                 continue
 
             referenced_schema = values[0].reference().schema
-            query = (QueryBuilder()
-                     .append(f"SELECT * FROM {referenced_schema.table_name} ")
-                     .append(f"WHERE ({', '.join(referenced_schema.primaryKey)})")
-                     .appendIn(list(foreign_key_values)))
+            query = (
+                QueryBuilder()
+                .append(f"SELECT * FROM {referenced_schema.table_name} ")
+                .append(f"WHERE ({', '.join(referenced_schema.primaryKey)})")
+                .appendIn(list(foreign_key_values))
+            )
 
             foreign_key_result = values[0].reference().get_data_with_query(query)
             foreign_primary_key = referenced_schema.primaryKey
@@ -206,11 +213,10 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
 
         for col, value in one_to_many_cols:
             db_values = {row[value.db_field_name] for row in result}
-            query = (QueryBuilder()
-                     .append(value.referenced_column).appendIn(list(db_values)))
-            one_To_many_result = value.reference().get_data_with_where(query)
+            query = QueryBuilder().append(value.referenced_column).appendIn(list(db_values))
+            one_to_many_result = value.reference().get_data_with_where(query)
             result_map = {}
-            for row in one_To_many_result:
+            for row in one_to_many_result:
                 row_value = getattr(row, value.referenced_column)
                 if row_value not in result_map:
                     result_map[row_value] = []
@@ -227,8 +233,9 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
             else:
                 row[column] = default
 
-    def get_one_with_query(self, query: QueryBuilder | str, nullable: bool = False,
-                           fetch_type: FetchType = FetchType.EAGER) -> D:
+    def get_one_with_query(
+            self, query: QueryBuilder | str, nullable: bool = False, fetch_type: FetchType = FetchType.EAGER
+    ) -> D:
         """
         Returns a single row based on the provided query.
         """
@@ -237,8 +244,9 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
             raise ValueError("No data found for the query: " + str(query))
         return result
 
-    def get_one_or_none_with_query(self, query: QueryBuilder | str,
-                                   fetch_type: FetchType = FetchType.EAGER) -> D | None:
+    def get_one_or_none_with_query(
+            self, query: QueryBuilder | str, fetch_type: FetchType = FetchType.EAGER
+    ) -> D | None:
         """
         Returns a single row based on the provided query.
         """
@@ -264,29 +272,32 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         """
         Returns a list of data objects based on the provided query where clause.
         """
-        query = (QueryBuilder()
-                 .append(f"SELECT * FROM {self.schema.table_name_no_alias} WHERE")
-                 .append(query))
+        query = QueryBuilder().append(f"SELECT * FROM {self.schema.table_name_no_alias} WHERE").append(query)
         return self.get_data_with_query(query, fetch_type)
 
-    def get_one_with_where(self, query: QueryBuilder | str, nullable: bool = False,
-                           fetch_type: FetchType = FetchType.EAGER) -> D:
+    def get_one_with_where(
+            self, query: QueryBuilder | str, nullable: bool = False, fetch_type: FetchType = FetchType.EAGER
+    ) -> D:
         """
         Returns a single row based on the provided query where clause.
         """
-        query = (QueryBuilder()
-                 .append(f"SELECT * FROM {self.schema.table_name_no_alias} WHERE")
-                 .append(query))
+        query = QueryBuilder().append(f"SELECT * FROM {self.schema.table_name_no_alias} WHERE").append(query)
         return self.get_one_with_query(query, nullable, fetch_type)
 
-    def get_one_with_join(self, query: QueryBuilder | str, alias: str = None, nullable: bool = False,
-                          fetch_type: FetchType = FetchType.EAGER) -> D:
+    def get_one_with_join(
+            self,
+            query: QueryBuilder | str,
+            alias: str = None,
+            nullable: bool = False,
+            fetch_type: FetchType = FetchType.EAGER,
+    ) -> D:
         """
         Returns a single row based on the provided query with join.
         """
         alias = alias or self.schema.alias
-        whole_query = QueryBuilder().append(
-            f"SELECT {alias}.* FROM {self.schema.table_name_no_alias} AS {alias}").append(query)
+        whole_query = (
+            QueryBuilder().append(f"SELECT {alias}.* FROM {self.schema.table_name_no_alias} AS {alias}").append(query)
+        )
         return self.get_one_with_query(whole_query, nullable, fetch_type)
 
     @staticmethod

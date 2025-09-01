@@ -41,8 +41,8 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         self.validate_types()
 
     def __repr__(self):
-        field_values = ', '.join(f"{k}={getattr(self, k)}" for k in self._meta.fields.keys())
-        return f"{self.__class__.__name__}({field_values})"
+        field_values = ', '.join(f"{k.field_name}={getattr(self, k.db_field_name)}" for k in self._meta.primary_keys)
+        return f"{self.__class__.__name__}(Key[{field_values})"
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -60,6 +60,9 @@ class BaseData[K: tuple](metaclass=ModelMeta):
             # calculate LAZY fetch
             raise AttributeError
         return value
+
+    def __hash__(self):
+        return hash((self.__class__, self.pk))
 
     @classmethod
     def from_db_dict(cls, db_dict: dict) -> "BaseData":
@@ -107,12 +110,12 @@ class BaseData[K: tuple](metaclass=ModelMeta):
             if origin is typing.Union and type(None) in args:  # Optional types
                 non_none_args = tuple(arg for arg in args if arg is not type(None))
                 isvalid = isinstance(value, non_none_args) or value is None
-            elif origin is typing.Literal: # Literal types
+            elif origin is typing.Literal:  # Literal types
                 isvalid = value in args
             elif origin:  # Other generic types
                 isvalid = isinstance(value, origin)
             else:  # Simple types
-                isvalid_boolean_int = expected_type is bool and isinstance(value, int) and value in (0, 1)  # Allow int to be used as boolean
+                isvalid_boolean_int = expected_type is bool and isinstance(value, int) and value in (0, 1)
                 isvalid = isinstance(value, expected_type) or isvalid_boolean_int
 
             if not isvalid:
