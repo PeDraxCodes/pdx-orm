@@ -4,25 +4,26 @@ from typing import Any, Type
 
 from . import QueryGenerator
 from .AbstractSchema import AbstractSchema
-from .BaseDBOperations import BaseDBOperations
 from .BaseData import BaseData
 from .Connection import Connection
+from .ConnectionHandler import ConnectionHandler
 from .DBColumn import DBColumn
-from .DBResult import DBResult
 from .OrmEnums import FetchType
 from .QueryBuilder import QueryBuilder
 from .logger import ORM_LOGGER_NAME
+from .result_objects.DBResult import DBResult
 
 
 orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
 
-class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
+class AbstractTable[D: BaseData, K](ABC):
     schema: AbstractSchema
     dataclass: Type[BaseData]
 
     def __init__(self):
-        super().__init__()
+        self._connection = ConnectionHandler.get_readonly_connection()
+        self._connection.connect()
 
     def get_all(self, fetch_type: FetchType = FetchType.EAGER) -> list[D]:
         query = f"SELECT * FROM {self.schema.table_name};"
@@ -311,19 +312,11 @@ class AbstractTable[D: BaseData, K](ABC, BaseDBOperations):
         """
         Executes a SELECT query and returns the result.
         """
-        if isinstance(query, QueryBuilder):
-            params = query.params
-            query = query.query
-        return super().execute_select_query(query, params)
+        return self._connection.execute(query, params)
 
     def execute(self, query: QueryBuilder | str, params: list | tuple | None = None):
         """
         Executes a query (INSERT, UPDATE, DELETE) and returns the result.
         """
-        orm_logger.info("DML-STATEMENT: %s", str(query))
-        if isinstance(query, QueryBuilder):
-            params = query.params
-            query = query.query
-
         with Connection() as db:
             db.execute(query, params)
