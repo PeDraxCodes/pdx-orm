@@ -42,7 +42,7 @@ class BaseDataTest(unittest.TestCase):
         self.assertNotEqual(self.test_data, None)
 
     def test_repr(self):
-        self.assertEqual(repr(self.test_data), "TestData(x=1, y=test, z=hallo)")
+        self.assertEqual(repr(self.test_data), "TestData(Pk[x=1])")
 
     def test_json(self):
         self.assertEqual(

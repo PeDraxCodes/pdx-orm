@@ -42,7 +42,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
 
     def __repr__(self):
         field_values = ', '.join(f"{k.field_name}={getattr(self, k.db_field_name)}" for k in self._meta.primary_keys)
-        return f"{self.__class__.__name__}(Key[{field_values})"
+        return f"{self.__class__.__name__}(Pk[{field_values}])"
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
