@@ -1,6 +1,7 @@
 import logging
 from urllib.parse import parse_qs, urlparse
 
+from pdxorm.result_objects.DBResult import DBResult  # noqa: F401
 from . import (
     QueryGenerator,  # noqa: F401
     settings,
@@ -8,24 +9,24 @@ from . import (
 from .AbstractSchema import AbstractSchema  # noqa: F401
 from .AbstractTable import AbstractTable  # noqa: F401
 from .BaseData import BaseData  # noqa: F401
-from .BaseDBOperations import BaseDBOperations  # noqa: F401
 from .Connection import Connection  # noqa: F401
+from .ConnectionHandler import ConnectionHandler  # noqa: F401
 from .DBColumn import DBColumn  # noqa: F401
-from .DBResult import DBResult  # noqa: F401
-from .logger import ORM_LOGGER_NAME  # noqa: F401
+from .DatabaseType import DatabaseType
 from .QueryBuilder import QueryBuilder  # noqa: F401
-from .SqliteConnection import SqliteConnection  # noqa: F401
+from .logger import ORM_LOGGER_NAME  # noqa: F401
 
 orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
 
-def setup_database_from_url(database_url: str):
+def setup_database_from_url(database_url: str, database_type: DatabaseType):
     """
     Konfiguriert die Datenbankverbindung über eine URL/DSN.
 
     Args:
         database_url (str): Z.B. postgresql://user:password@host:port/database?sslmode=require
                                  sqlite:///path/to/database.db
+        database_type (DatabaseType): Der Typ der Datenbank (z.B. DatabaseType.MYSQL, DatabaseType.SQLITE)
     """
     if settings.DB_IS_INITIALIZED:
         orm_logger.warning("Datenbank bereits konfiguriert.")
@@ -52,6 +53,7 @@ def setup_database_from_url(database_url: str):
         settings.DB_PATH = config['database']  # Nutzt die geparste Config
         orm_logger.info("Datenbankverbindung erfolgreich konfiguriert.")
         settings.DB_IS_INITIALIZED = True
+        settings.DB_TYPE = database_type
 
     except Exception as e:
         orm_logger.error("Fehler beim Parsen der Datenbank-URL oder Konfiguration: %s", e, exc_info=True)
