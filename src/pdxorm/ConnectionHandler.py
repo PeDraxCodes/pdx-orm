@@ -29,7 +29,7 @@ class ConnectionHandler:
                 ConnectionHandler._open_connections.append(connection)
                 return connection
             case DatabaseType.MYSQL:
-                connection = MySqlConnection()
+                connection = MySqlConnection(readonly=True)
                 ConnectionHandler._read_connection = connection
                 ConnectionHandler._open_connections.append(connection)
                 return connection

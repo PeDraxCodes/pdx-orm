@@ -15,7 +15,6 @@ class SqliteConnection(AbstractConnection):
     def __init__(self, readonly: bool, foreign_keys: bool = True):
         super().__init__(readonly)
         self.foreign_keys = int(foreign_keys)
-        self.open = False
         self._con: sqlite3.Connection | None = None
         self.cursor: sqlite3.Cursor | None = None
         self.connect()
@@ -52,13 +51,22 @@ class SqliteConnection(AbstractConnection):
         self.open = False
 
     def execute(self, query: QueryBuilder | str, params: list | tuple | None = None) -> DBResult:
+        if isinstance(query, QueryBuilder):
+            self.log(str(query))
+        else:
+            self.log(str(query) + " | " + str(params))
         return SqliteDBResult(self._con.execute(self._get_query(query), self._get_params(query, params)))
 
     def executemany(self, query: QueryBuilder | str, params: list[tuple] | list[list] | None = None) -> DBResult:
-        pass
+        if isinstance(query, QueryBuilder):
+            self.log(str(query) + " | " + str(params))
+        else:
+            self.log(str(query) + " | " + str(params))
+        return SqliteDBResult(self._con.executemany(self._get_query(query), params or []))
 
     def executescript(self, script: str) -> DBResult:
-        pass
+        self.log("Executing SQL-script")
+        return SqliteDBResult(self._con.executescript(script))
 
     def rollback(self):
         self._con.rollback()

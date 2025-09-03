@@ -50,12 +50,28 @@ def setup_database_from_url(database_url: str, database_type: DatabaseType):
             # Nimm nur den ersten Wert, falls Parameter mehrfach vorkommt
             config[key] = value[0]
 
-        settings.DB_PATH = config['database']  # Nutzt die geparste Config
-        orm_logger.info("Datenbankverbindung erfolgreich konfiguriert.")
-        settings.DB_IS_INITIALIZED = True
-        settings.DB_TYPE = database_type
-
     except Exception as e:
         orm_logger.error("Fehler beim Parsen der Datenbank-URL oder Konfiguration: %s", e, exc_info=True)
         settings.DB_IS_INITIALIZED = False
         raise
+    if DatabaseType.SQLITE == database_type:
+        settings.DB_PATH = config['database']  # Nutzt die geparste Config
+    elif DatabaseType.MYSQL == database_type:
+        settings.DB_HOST = config['host']
+        settings.DB_PORT = config['port'] if config['port'] is not None else 3306
+        settings.DB_USER = config['user']
+        settings.DB_PASSWORD = config['password']
+        settings.DB_NAME = config['database']
+        settings.DB_PATH = database_url
+
+        assert settings.DB_HOST is not None
+        assert settings.DB_PORT is not None
+        assert settings.DB_USER is not None
+        assert settings.DB_PASSWORD is not None
+        assert settings.DB_NAME is not None
+    else:
+        raise ValueError("Unsupported database type.")
+
+    orm_logger.info("Datenbankverbindung erfolgreich konfiguriert.")
+    settings.DB_IS_INITIALIZED = True
+    settings.DB_TYPE = database_type

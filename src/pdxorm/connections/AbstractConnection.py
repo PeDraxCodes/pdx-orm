@@ -11,6 +11,7 @@ orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 class AbstractConnection(ABC):
     def __init__(self, readonly: bool):
         self._readonly = readonly
+        self.open = False
 
     @abstractmethod
     def connect(self):
@@ -45,7 +46,7 @@ class AbstractConnection(ABC):
         ...
 
     def log(self, msg: str):
-        if self._readonly:
+        if not self._readonly:
             orm_logger.info("DML-CONNECTION: %s", msg)
         else:
             orm_logger.debug(msg)
