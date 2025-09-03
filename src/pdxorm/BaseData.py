@@ -38,7 +38,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
                 value = LazyField(value, get_first_or_element(field_obj).reference)
             setattr(self, field_name, value)
 
-        self.validate_types()
+        # self.validate_types()
 
     def __repr__(self):
         field_values = ', '.join(f"{k.field_name}={getattr(self, k.db_field_name)}" for k in self._meta.primary_keys)
@@ -172,7 +172,8 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         if isinstance(value, BaseData):
             return value.pk
         if isinstance(value, list):
-            return None if len(value) == 0 else tuple(value[0].pk)  # only first element for foreign key
+            return None if len(value) == 0 else \
+                (value[0].get_values_for_columns([self._meta.fields[attribute].referenced_column])[0],)
         return (value,)
 
     def set_db_value(self, attribute: str, value: Any) -> None:

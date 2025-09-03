@@ -113,19 +113,41 @@ class AbstractTable[D: BaseData, K](ABC):
     def _update(self, data: D) -> None:
         existing_data = self.get_one(data.pk, fetch_type=FetchType.LAZY)
         different_columns = self._get_different_columns(data, existing_data)
-        if not different_columns:
-            return
-        schema = self.schema.without_alias()
+        with Connection() as conn:
+            if different_columns:
+                schema = self.schema.without_alias()
 
-        attr = data.get_values_for_columns(different_columns)
-        query = (
-            QueryBuilder()
-            .append("UPDATE " + schema.table_name)
-            .append("SET " + ", ".join([f"{col} = ?" for col in different_columns]), attr)
-            .append(QueryGenerator.generate_where_with_pk(schema, data.pk))
-        )
+                attr = data.get_values_for_columns(different_columns)
+                main_query = (
+                    QueryBuilder()
+                    .append("UPDATE " + schema.table_name)
+                    .append("SET " + ", ".join([f"{col} = ?" for col in different_columns]), attr)
+                    .append(QueryGenerator.generate_where_with_pk(schema, data.pk))
+                )
+                conn.execute(main_query)
 
-        self.execute(query)
+            for col in data.meta().one_to_many_fields.values():
+                if col.db_field_name in different_columns:
+                    raise ValueError("Cannot upda8te one-to-many fields directly. Update the related table instead.")
+
+                one_to_many_data: list[BaseData] = getattr(data, col.db_field_name)
+                if not isinstance(one_to_many_data, list) or len(one_to_many_data) == 0:
+                    continue
+
+                sc: AbstractSchema = col.reference.schema.without_alias()
+                columns_to_update = [col for col in sc.columns if col not in sc.primaryKey]
+                reference_query = (
+                    QueryBuilder()
+                    .append("UPDATE " + sc.table_name)
+                    .append("SET " + ", ".join([f'{col} = ?' for col in columns_to_update]))
+                    .append(QueryGenerator.generate_where_with_pk(sc, ()))
+                )
+                params = []
+                for item in one_to_many_data:
+                    db_columns = item.get_values_for_columns(columns_to_update)
+                    db_columns.extend(item.pk)
+                    params.append(db_columns)
+                conn.executemany(reference_query.query, params)
 
     def _get_different_columns(self, data1: D, data2: D) -> set[str]:
         fields = data1.meta().fields
