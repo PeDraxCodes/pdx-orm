@@ -97,12 +97,12 @@ class AbstractTable[D: BaseData, K](ABC):
         """
         Returns the columns to be inserted into the table.
         """
-        columns = self.schema.columns
         auto_generated = data.meta().auto_generated_fields
+        columns_to_insert = []
         for col in self.schema.columns:
-            if col in auto_generated and getattr(data, col) is None:
-                columns.remove(col)
-        return columns
+            if col not in auto_generated or getattr(data, col) is not None:
+                columns_to_insert.append(col)
+        return columns_to_insert
 
     def update(self, data: D) -> None:
         """
@@ -112,7 +112,7 @@ class AbstractTable[D: BaseData, K](ABC):
 
     def _update(self, data: D) -> None:
         existing_data = self.get_one(data.pk, fetch_type=FetchType.LAZY)
-        different_columns = self._get_different_columns(data, existing_data)
+        different_columns = list(self._get_different_columns(data, existing_data))
         with Connection() as conn:
             if different_columns:
                 schema = self.schema.without_alias()
@@ -152,13 +152,14 @@ class AbstractTable[D: BaseData, K](ABC):
     def _get_different_columns(self, data1: D, data2: D) -> set[str]:
         fields = data1.meta().fields
         different_columns = set()
-        for k, field in fields.items():
-            if field.db_field_name in data1.meta().primary_keys:
-                continue
-            if field.auto_generated:
-                continue
-            if data1.get_db_value(k) != data2.get_db_value(k):
-                different_columns.add(field.db_field_name)
+        for k, fields in fields.items():
+            for field in get_elements_as_list(fields, lambda f: f):
+                if field.db_field_name in get_elements_as_list(data1.meta().primary_keys, lambda f: f.db_field_name):
+                    continue
+                if field.auto_generated:
+                    continue
+                if data1.get_db_value(k) != data2.get_db_value(k):
+                    different_columns.add(field.db_field_name)
 
         return different_columns
 
@@ -281,7 +282,7 @@ class AbstractTable[D: BaseData, K](ABC):
             for col, values in self.dataclass.meta().foreign_keys.items():
                 key = self._get_fk_as_tuple(result_as_dict, values)
                 resolved_value = values[0].reference().get_one(key, nullable=True)
-                result_as_dict[col] = resolved_value
+                self._set_values(result_as_dict, values, resolved_value)
 
             for col, values in self.dataclass.meta().one_to_many_fields.items():
                 key = result_as_dict[values.db_field_name]
@@ -290,6 +291,10 @@ class AbstractTable[D: BaseData, K](ABC):
                 result_as_dict[values.db_field_name] = resolved_value or []
 
         return self.dataclass.from_db_dict(result_as_dict)
+
+    def _set_values(self, db_dict, columns: list[DBColumn], data: Any):
+        for col in columns:
+            db_dict[col.db_field_name] = data
 
     def get_data_with_where(self, query: QueryBuilder | str, fetch_type: FetchType = FetchType.EAGER) -> list[D]:
         """
