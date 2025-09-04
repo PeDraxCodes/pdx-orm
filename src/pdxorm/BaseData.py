@@ -3,12 +3,12 @@ import typing
 from typing import Any
 
 from .ModelMeta import MetaInformation, ModelMeta
-from .utils import get_as_tuple, get_first_or_element
+from .utils import get_as_tuple, get_elements_as_list, get_first_or_element
 
 
 class LazyField:
-    def __init__(self, db_value: Any, reference: Any):
-        self.db_value = db_value
+    def __init__(self, db_values: list[Any], reference: Any):
+        self.db_values = db_values
         self.reference = reference
 
 
@@ -33,9 +33,9 @@ class BaseData[K: tuple](metaclass=ModelMeta):
                 # Wenn der Wert eine Liste ist, konvertiere ihn in die richtige Form
                 value = [field_obj.reference.dataclass(**item) if isinstance(item, dict) else item for item in value]
 
-            if value is not None and not isinstance(value, LazyField) and get_first_or_element(
-                    field_obj).reference and not self._is_type_or_list_type(value, BaseData):
-                value = LazyField(value, get_first_or_element(field_obj).reference)
+            if value is not None and not isinstance(value, LazyField) and field_obj and not self._is_type_or_list_type(
+                    value, BaseData):
+                value = LazyField(value, field_obj.reference)
             setattr(self, field_name, value)
 
         # self.validate_types()
@@ -80,7 +80,10 @@ class BaseData[K: tuple](metaclass=ModelMeta):
                 reference = field_obj.reference
 
             if reference and value is not None and not cls._is_type_or_list_type(value, reference.dataclass):
-                new_dict[field_name] = LazyField(value, reference)
+                collect_lazy_values = []
+                for field in get_elements_as_list(field_obj):
+                    collect_lazy_values.append(db_dict.get(field.db_field_name, None))
+                new_dict[field_name] = LazyField(collect_lazy_values, reference)
             else:
                 new_dict[field_name] = value
         return cls(**new_dict, date_from_db_raw=db_dict)
@@ -168,7 +171,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         if value is None:
             return (None,) * len(get_as_tuple(self._meta.fields[attribute]))
         if isinstance(value, LazyField):
-            return (value.db_value,)
+            return get_as_tuple(value.db_values)
         if isinstance(value, BaseData):
             return value.pk
         if isinstance(value, list):
@@ -186,7 +189,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         if attribute not in self._meta.fields:
             raise ValueError(f"Column {attribute} not found in meta information")
         if isinstance(value, LazyField):
-            value = value.db_value
+            value = value.db_values
         if isinstance(value, BaseData) or self._meta.db_columns[attribute].reference:
             value = LazyField(value, self._meta.db_columns[attribute].reference)
         self.__dict__[attribute] = value
