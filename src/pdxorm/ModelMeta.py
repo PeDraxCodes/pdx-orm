@@ -66,6 +66,16 @@ class ModelMeta(type):
             'foreign_keys': foreign_key_field,  # Map from {model_attr: [Field_instance]}
             'one_to_many_fields': one_to_many_field,  # Map from {model_attr: [Field_instance]}
         }
+
+        if cls_dict["__orig_bases__"] and cls_dict["__orig_bases__"][0].__name__ != "BaseData" and \
+                cls_dict["__orig_bases__"][0].__name__ != "Generic":
+            meta["fields"].update(cls_dict["__orig_bases__"][0].meta().fields)
+            meta["db_columns"].update(cls_dict["__orig_bases__"][0].meta().db_columns)
+            meta["primary_keys"].extend(cls_dict["__orig_bases__"][0].meta().primary_keys)
+            meta["foreign_keys"].update(cls_dict["__orig_bases__"][0].meta().foreign_keys)
+            meta["one_to_many_fields"].update(cls_dict["__orig_bases__"][0].meta().one_to_many_fields)
+            meta["auto_generated_fields"].extend(cls_dict["__orig_bases__"][0].meta().auto_generated_fields)
+
         meta = MetaInformation(**meta)
         cls_dict['_meta'] = meta  # save the meta dict in the class dict
 
