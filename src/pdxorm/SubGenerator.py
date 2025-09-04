@@ -162,8 +162,11 @@ class StubVisitor(ast.NodeVisitor):
                     init_params.append(f"{field_name}: {type_hint_str}")
             elif isinstance(item, ast.Assign):
                 field_name = item.targets[0].id
-                value = item.value.value
-
+                try:
+                    value = item.value.value
+                except AttributeError as e:
+                    print("The value %s has no type hint!" % field_name, file=sys.stderr)
+                    raise AttributeError(f"The value {field_name} has no type hint!") from e
                 fields.append(f"    {field_name} = '{value}'")
 
         # Stub-Teil für diese Klasse zusammenbauen

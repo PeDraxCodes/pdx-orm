@@ -45,7 +45,7 @@ class ConnectionHandler:
             case DatabaseType.SQLITE:
                 return SqliteConnection(readonly=False, foreign_keys=foreign_keys)
             case DatabaseType.MYSQL:
-                return MySqlConnection()
+                return MySqlConnection(readonly=False)
             case _:
                 raise ValueError("Unsupported database type.")
 
