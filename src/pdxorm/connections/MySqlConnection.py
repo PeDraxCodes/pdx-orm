@@ -26,6 +26,10 @@ class MySqlConnection(AbstractConnection):
                                          port=settings.DB_PORT,
                                          database=settings.DB_NAME)
             self._cursor = self._conn.cursor()
+            if self._readonly:
+                with self._conn.cursor() as cursor:
+                    cursor.execute("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
+
         except MySQLdb.Error as e:
             orm_logger.error("Error while connecting to database: " + str(e))
             self._conn = None
