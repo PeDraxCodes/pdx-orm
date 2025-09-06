@@ -1,6 +1,10 @@
 import logging
 
-import MySQLdb
+# Import MySQLdb only if available
+try:
+    import MySQLdb
+except ImportError:
+    MySQLdb = None
 
 from .AbstractConnection import AbstractConnection
 from .. import DBResult, settings
@@ -13,6 +17,8 @@ orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
 class MySqlConnection(AbstractConnection):
     def __init__(self, readonly: bool):
+        if MySQLdb is None:
+            raise ImportError("MySQLdb module is required for MySqlConnection but not available")
         super().__init__(readonly)
         self._conn: MySQLdb.connections.Connection | None = None
         self._cursor: MySQLdb.cursors.Cursor | None = None

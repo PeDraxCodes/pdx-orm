@@ -1,5 +1,10 @@
 import logging
-import sqlite3
+
+# Import sqlite3 only if available
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
 
 from .AbstractConnection import AbstractConnection
 from .. import DBResult, settings
@@ -13,6 +18,8 @@ orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 class SqliteConnection(AbstractConnection):
 
     def __init__(self, readonly: bool, foreign_keys: bool = True):
+        if sqlite3 is None:
+            raise ImportError("sqlite3 module is required for SqliteConnection but not available")
         super().__init__(readonly)
         self.foreign_keys = int(foreign_keys)
         self._con: sqlite3.Connection | None = None

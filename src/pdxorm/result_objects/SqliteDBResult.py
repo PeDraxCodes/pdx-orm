@@ -1,11 +1,18 @@
-import sqlite3
+# Import sqlite3 only if available
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
+
 from typing import Any
 
 from .DBResult import DBResult
 
 
 class SqliteDBResult(DBResult):
-    def __init__(self, result: sqlite3.Cursor):
+    def __init__(self, result: "sqlite3.Cursor"):
+        if sqlite3 is None:
+            raise ImportError("sqlite3 module is required for SqliteDBResult but not available")
         self._result = result
 
     @property

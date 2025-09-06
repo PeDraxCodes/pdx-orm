@@ -1,12 +1,19 @@
 from typing import Any
 
-import MySQLdb.cursors
+# Import MySQLdb only if available
+try:
+    import MySQLdb.cursors
+except ImportError:
+    MySQLdb = None
+
 
 from pdxorm import DBResult
 
 
 class MySqlDBResult(DBResult):
-    def __init__(self, cursor: MySQLdb.cursors.Cursor):
+    def __init__(self, cursor: "MySQLdb.cursors.Cursor"):
+        if MySQLdb is None:
+            raise ImportError("MySQLdb module is required for MySqlDBResult but not available")
         self._cursor = cursor
 
     @property
