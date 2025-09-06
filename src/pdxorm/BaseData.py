@@ -33,16 +33,26 @@ class BaseData[K: tuple](metaclass=ModelMeta):
                 # Wenn der Wert eine Liste ist, konvertiere ihn in die richtige Form
                 value = [field_obj.reference.dataclass(**item) if isinstance(item, dict) else item for item in value]
 
-            if value is not None and not isinstance(value, LazyField) and field_obj and not self._is_type_or_list_type(
-                    value, BaseData):
+            if value is not None and not isinstance(value,
+                                                    LazyField) and field_obj.reference and not self._is_type_or_list_type(
+                value, BaseData):
                 value = LazyField(value, field_obj.reference)
             setattr(self, field_name, value)
 
         # self.validate_types()
 
     def __repr__(self):
-        field_values = ', '.join(f"{k.field_name}={getattr(self, k.db_field_name)}" for k in self._meta.primary_keys)
+        field_values = ', '.join(f"{k.field_name}={getattr(self, k.field_name)}" for k in self._meta.primary_keys)
         return f"{self.__class__.__name__}(Pk[{field_values}])"
+
+    def __str__(self):
+        pks = get_elements_as_list(self._meta.primary_keys, lambda x: x.field_name)
+        pk_values = ', '.join(f"{k.field_name}={getattr(self, k.field_name)}" for k in self._meta.primary_keys)
+
+        field_values = ', '.join(
+            f"{k}={getattr(self, k)}" for k in self._meta.fields.keys() if k not in pks)
+
+        return f"{self.__class__.__name__}(Pk[{pk_values}], {field_values})"
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):

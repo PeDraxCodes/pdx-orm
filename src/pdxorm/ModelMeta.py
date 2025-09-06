@@ -67,7 +67,8 @@ class ModelMeta(type):
             'one_to_many_fields': one_to_many_field,  # Map from {model_attr: [Field_instance]}
         }
 
-        if cls_dict["__orig_bases__"] and cls_dict["__orig_bases__"][0].__name__ != "BaseData" and \
+        if "__orig_bases__" in cls_dict and cls_dict["__orig_bases__"] and cls_dict["__orig_bases__"][
+            0].__name__ != "BaseData" and \
                 cls_dict["__orig_bases__"][0].__name__ != "Generic":
             meta["fields"].update(cls_dict["__orig_bases__"][0].meta().fields)
             meta["db_columns"].update(cls_dict["__orig_bases__"][0].meta().db_columns)

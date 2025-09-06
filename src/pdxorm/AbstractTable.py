@@ -2,6 +2,8 @@ import logging
 from abc import ABC
 from typing import Any, Type
 
+from pdxorm.utils import get_elements_as_list
+
 from . import QueryGenerator
 from .AbstractSchema import AbstractSchema
 from .BaseData import BaseData
@@ -52,7 +54,7 @@ class AbstractTable[D: BaseData, K](ABC):
         column_names = self._columns_to_insert(data)
         query = (
             QueryBuilder()
-            .append("INSERT INTO " + self.schema.table_name + " (" + ", ".join(column_names) + ") ")
+            .append("INSERT INTO " + self.schema.table_name_no_alias + " (" + ", ".join(column_names) + ") ")
             .append("VALUES (" + ", ".join(["?"] * len(column_names)) + ")", data.get_values_for_columns(column_names))
         )
 
