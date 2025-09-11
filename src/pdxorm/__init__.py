@@ -21,18 +21,18 @@ orm_logger = logging.getLogger(ORM_LOGGER_NAME)
 
 def setup_database_from_url(database_url: str, database_type: DatabaseType):
     """
-    Konfiguriert die Datenbankverbindung über eine URL/DSN.
+    Configures the database connection via a URL/DSN.
 
     Args:
-        database_url (str): Z.B. postgresql://user:password@host:port/database?sslmode=require
+        database_url (str): e.g. mysql://user:password@host:port/database?ssl_mode=required
                                  sqlite:///path/to/database.db
-        database_type (DatabaseType): Der Typ der Datenbank (z.B. DatabaseType.MYSQL, DatabaseType.SQLITE)
+        database_type (DatabaseType): The type of database (e.g. DatabaseType.MYSQL, DatabaseType.SQLITE)
     """
     if settings.DB_IS_INITIALIZED:
-        orm_logger.warning("Datenbank bereits konfiguriert.")
+        orm_logger.warning("Database is already initialized. Skipping re-initialization.")
         return
 
-    orm_logger.info("Konfiguriere Datenbank über URL...")
+    orm_logger.info("Configuring database connection from URL.")
     try:
         parsed_url = urlparse(database_url)
         config = {}
@@ -41,17 +41,17 @@ def setup_database_from_url(database_url: str, database_type: DatabaseType):
         config['password'] = parsed_url.password
         config['host'] = parsed_url.hostname
         config['port'] = parsed_url.port
-        # Pfad für SQLite oder Datenbankname für andere
+        # Use path for sqlite and database name for others
         config['database'] = parsed_url.path.lstrip('/') if config['driver'] != 'sqlite' else parsed_url.path
 
-        # Extrahiere Query-Parameter (z.B. ?sslmode=require&pool_size=10)
+        # Extract additional query parameters (e.g. ?sslmode=require&pool_size=10)
         query_params = parse_qs(parsed_url.query)
         for key, value in query_params.items():
-            # Nimm nur den ersten Wert, falls Parameter mehrfach vorkommt
+            # Only take the first value for each key, if there are multiple
             config[key] = value[0]
 
     except Exception as e:
-        orm_logger.error("Fehler beim Parsen der Datenbank-URL oder Konfiguration: %s", e, exc_info=True)
+        orm_logger.error("Error parsing database URL or configuration: %s", e, exc_info=True)
         settings.DB_IS_INITIALIZED = False
         raise
     if DatabaseType.SQLITE == database_type:
@@ -72,6 +72,6 @@ def setup_database_from_url(database_url: str, database_type: DatabaseType):
     else:
         raise ValueError("Unsupported database type.")
 
-    orm_logger.info("Datenbankverbindung erfolgreich konfiguriert.")
+    orm_logger.info("Successfully configured database connection.")
     settings.DB_IS_INITIALIZED = True
     settings.DB_TYPE = database_type

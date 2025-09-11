@@ -3,7 +3,6 @@ from abc import ABC
 from typing import Any, Type
 
 from pdxorm.utils import get_elements_as_list
-
 from . import QueryGenerator
 from .AbstractSchema import AbstractSchema
 from .BaseData import BaseData
@@ -150,6 +149,10 @@ class AbstractTable[D: BaseData, K](ABC):
                     db_columns.extend(item.pk)
                     params.append(db_columns)
                 conn.executemany(reference_query.query, params)
+                self.execute(
+                    QueryBuilder().append(f"DELETE FROM {sc.table_name} WHERE {col.referenced_column} = ? AND ",
+                                          data.get_db_value(col.field_name))
+                    .append(f"NOT ({', '.join(sc.primaryKey)})").appendIn([item.pk for item in one_to_many_data]), )
 
     def _get_different_columns(self, data1: D, data2: D) -> set[str]:
         fields = data1.meta().fields
