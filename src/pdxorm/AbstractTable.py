@@ -94,13 +94,14 @@ class AbstractTable[D: BaseData, K](ABC):
             return []
         return result
 
-    def _columns_to_insert(self, data: D) -> list[str]:
+    @classmethod
+    def _columns_to_insert(cls, data: D) -> list[str]:
         """
         Returns the columns to be inserted into the table.
         """
         auto_generated = data.meta().auto_generated_fields
         columns_to_insert = []
-        for col in self.schema.columns:
+        for col in cls.schema.columns:
             if col not in auto_generated or getattr(data, col) is not None:
                 columns_to_insert.append(col)
         return columns_to_insert
@@ -129,23 +130,28 @@ class AbstractTable[D: BaseData, K](ABC):
 
             for col in data.meta().one_to_many_fields.values():
                 if col.db_field_name in different_columns:
-                    raise ValueError("Cannot upda8te one-to-many fields directly. Update the related table instead.")
+                    raise ValueError("Cannot update one-to-many fields directly. Update the related table instead.")
 
                 one_to_many_data: list[BaseData] = getattr(data, col.db_field_name)
                 if not isinstance(one_to_many_data, list) or len(one_to_many_data) == 0:
                     continue
 
                 sc: AbstractSchema = col.reference.schema.without_alias()
+                columns_to_insert = col.reference._columns_to_insert(one_to_many_data[0])
                 columns_to_update = [col for col in sc.columns if col not in sc.primaryKey]
                 reference_query = (
                     QueryBuilder()
-                    .append("UPDATE " + sc.table_name)
+                    .append(
+                        "INSERT INTO " + sc.table_name_no_alias + " (" + ", ".join(columns_to_insert) + ") ")
+                    .append("VALUES (" + ", ".join(["?"] * len(columns_to_insert)) + ")")
+                    .append("ON CONFLICT (" + ", ".join(sc.primaryKey) + ") DO UPDATE")
                     .append("SET " + ", ".join([f'{col} = ?' for col in columns_to_update]))
-                    .append(QueryGenerator.generate_where_with_pk(sc, ()))
+                    .append(QueryGenerator.generate_where_with_pk(sc, tuple()))
                 )
                 params = []
                 for item in one_to_many_data:
-                    db_columns = item.get_values_for_columns(columns_to_update)
+                    db_columns = item.get_values_for_columns(columns_to_insert)
+                    db_columns.extend(item.get_values_for_columns(columns_to_update))
                     db_columns.extend(item.pk)
                     params.append(db_columns)
                 conn.executemany(reference_query.query, params)
@@ -297,7 +303,7 @@ class AbstractTable[D: BaseData, K](ABC):
 
         return self.dataclass.from_db_dict(result_as_dict)
 
-    def _set_values(self, db_dict, columns: list[DBColumn], data: Any):
+    def _set_values(self, db_dict: dict, columns: list[DBColumn], data: Any):
         for col in columns:
             db_dict[col.db_field_name] = data
 
