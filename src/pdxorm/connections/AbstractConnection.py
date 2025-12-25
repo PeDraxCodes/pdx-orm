@@ -47,6 +47,8 @@ class AbstractConnection(ABC):
 
     def log(self, msg: str):
         if not self._readonly:
+            if msg.lower().strip().startswith("pragma") and not "key" in msg.lower():
+                orm_logger.debug("DML-CONNECTION: %s", msg) # PRAGMA statements are not logged as DML
             orm_logger.info("DML-CONNECTION: %s", msg)
         else:
             orm_logger.debug(msg)
