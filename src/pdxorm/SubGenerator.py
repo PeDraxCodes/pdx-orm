@@ -4,6 +4,11 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Set
 
+
+"""
+Disclaimer: THIS FILE IS AI GENERATED.
+"""
+
 # Annahme: Deine Basisklasse heißt 'BaseData'
 # Du kannst dies anpassen, falls sie anders heißt.
 BASE_CLASS_NAME = "BaseData"
@@ -226,7 +231,7 @@ def generate_stub_file(source_file: Path, target_file: Path, base_class_name: st
 
     try:
         target_file.parent.mkdir(parents=True, exist_ok=True)
-        target_file.write_text(output_content, encoding='utf-8')
+        target_file.write_text(output_content, encoding='utf-8', newline='\n')
         print(f"Successfully generated stub file: {target_file}")
     except IOError as e:
         print(f"Error: Could not write stub file {target_file}: {e}", file=sys.stderr)
