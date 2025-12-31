@@ -46,10 +46,14 @@ class AbstractConnection(ABC):
         ...
 
     def log(self, msg: str):
+        is_pragma = msg.lower().strip().startswith("pragma") and "key" not in msg.lower()
+        is_select = msg.lower().strip().startswith("select")
+
         if not self._readonly:
-            if msg.lower().strip().startswith("pragma") and not "key" in msg.lower():
-                orm_logger.debug("DML-CONNECTION: %s", msg) # PRAGMA statements are not logged as DML
-            orm_logger.info("DML-CONNECTION: %s", msg)
+            if is_pragma or is_select:
+                orm_logger.debug("DML-CONNECTION: %s", msg)  # PRAGMA statements are not logged as DML
+            else:
+                orm_logger.info("DML-CONNECTION: %s", msg)
         else:
             orm_logger.debug(msg)
 

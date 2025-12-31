@@ -58,7 +58,7 @@ class SqliteConnection(AbstractConnection):
         self.open = False
 
     def execute(self, query: QueryBuilder | str, params: list | tuple | None = None) -> DBResult:
-        if isinstance(query, QueryBuilder):
+        if isinstance(query, QueryBuilder) or params is None:
             self.log(str(query))
         else:
             self.log(str(query) + " | " + str(params))
@@ -66,9 +66,9 @@ class SqliteConnection(AbstractConnection):
 
     def executemany(self, query: QueryBuilder | str, params: list[tuple] | list[list] | None = None) -> DBResult:
         if isinstance(query, QueryBuilder):
-            self.log(str(query) + " | " + str(params))
+            self.log(str(query)[:20] + "... (many)")
         else:
-            self.log(str(query) + " | " + str(params))
+            self.log(str(query)[:20] + "... (many)")
         return SqliteDBResult(self._con.executemany(self._get_query(query), params or []))
 
     def executescript(self, script: str) -> DBResult:
