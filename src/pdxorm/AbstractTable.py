@@ -339,6 +339,21 @@ class AbstractTable[D: BaseData, K](ABC):
         )
         return self.get_one_with_query(whole_query, nullable, fetch_type)
 
+    def get_data_with_join(
+            self,
+            query: QueryBuilder | str,
+            alias: str = None,
+            fetch_type: FetchType = FetchType.EAGER,
+    ) -> list[D]:
+        """
+        Returns a list of data objects based on the provided query with join.
+        """
+        alias = alias or self.schema.alias
+        whole_query = (
+            QueryBuilder().append(f"SELECT {alias}.* FROM {self.schema.table_name_no_alias} AS {alias}").append(query)
+        )
+        return self.get_data_with_query(whole_query, fetch_type)
+
     @staticmethod
     def _get_fk_as_tuple(result: dict, fk: list[DBColumn]) -> tuple:
         key = []
