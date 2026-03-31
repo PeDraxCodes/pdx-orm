@@ -1,4 +1,4 @@
-from typing import Any, Self
+from typing import Any, Callable, Self
 
 
 class QueryBuilder:
@@ -30,6 +30,17 @@ class QueryBuilder:
         if "WHERE" in query:
             self._has_where = True
 
+        return self
+
+    def appendIf(self, condition: bool, query: str | Self, params: list | Any | Callable[[], Any] = None) -> Self:
+        """
+        Appends a query to the current query if the condition is true.
+        """
+        if callable(params):
+            params = params()
+        
+        if condition:
+            return self.append(query, params)
         return self
 
     def appendWhereOrAnd(self, query: str, params: list | Any = None) -> Self:
