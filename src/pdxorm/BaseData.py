@@ -68,7 +68,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         value = object.__getattribute__(self, name)
         if isinstance(value, LazyField):
             # calculate LAZY fetch
-            raise AttributeError
+            raise AttributeError("This field is not loaded yet. Please load it from the database first.")
         return value
 
     def __hash__(self):
