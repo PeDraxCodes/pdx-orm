@@ -1,7 +1,8 @@
 import json
 import typing
-from typing import Any
+from typing import Any, dataclass_transform
 
+from .DBColumn import DBColumn
 from .ModelMeta import MetaInformation, ModelMeta
 from .utils import get_as_tuple, get_elements_as_list, get_first_or_element
 
@@ -12,6 +13,7 @@ class LazyField:
         self.reference = reference
 
 
+@dataclass_transform(kw_only_default=True, field_specifiers=(DBColumn,))
 class BaseData[K: tuple](metaclass=ModelMeta):
     def __init__(self, **kwargs):
         self._meta: MetaInformation = self.__class__._meta  # Zugriff auf die Metadaten der Klasse

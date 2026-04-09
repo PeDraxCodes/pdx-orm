@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import dataclass_transform
 
 from pdxorm.DBColumn import DBColumn
 
@@ -13,6 +14,7 @@ class MetaInformation:
     auto_generated_fields: list[DBColumn]  # List of auto generated fields
 
 
+@dataclass_transform(kw_only_default=True, field_specifiers=(DBColumn,))
 class ModelMeta(type):
     def __new__(mcs, name, bases, cls_dict):  # noqa: ANN001
 
