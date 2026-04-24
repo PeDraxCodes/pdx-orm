@@ -82,20 +82,29 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         Converts a dictionary from the database to an instance of the class.
         No dict nesting allowed only other instances of BaseData
         """
-        new_dict = {}
-        for field_name, field_obj in cls.meta().fields.items():
-            if isinstance(field_obj, list):
-                value = db_dict.get(field_obj[0].db_field_name, None)
-                reference = field_obj[0].reference
-            else:
-                value = db_dict.get(field_obj.db_field_name, None)
-                reference = field_obj.reference
+        obj = cls.__new__(cls)
+        obj._loaded_from_db = True
+        for field_name, field_obj in cls.meta().fields_without_lists.items():
+            value = db_dict.get(field_obj.db_field_name, field_obj.default_value)
+            reference = field_obj.reference
 
-            if reference and value is not None and not cls._is_type_or_list_type(value, reference.dataclass):
-                collect_lazy_values = []
-                for field in get_elements_as_list(field_obj):
-                    collect_lazy_values.append(db_dict.get(field.db_field_name, None))
-                new_dict[field_name] = LazyField(collect_lazy_values, reference)
+            if reference and value is not None:
+                if isinstance(value, BaseData):
+                    obj.__dict__[field_name] = value.copy()  # make copy because AbstractTable can often bulk-loads references
+                elif isinstance(value, dict):
+                    obj.__dict__[field_obj.field_name] = reference.dataclass.from_db_dict(value)
+                elif isinstance(value, list):
+                    if len(value) == 0:
+                        obj.__dict__[field_name] = []
+                    elif isinstance(value[0], BaseData):  # expect the list to have the same type
+                        obj.__dict__[field_name] = [item.copy() for item in value]
+                    else:
+                        obj.__dict__[field_name] = [reference.dataclass.from_db_dict(item) for item in value]
+                else:
+                    collect_lazy_values = []
+                    for field in get_elements_as_list(cls.meta().fields[field_name]):
+                        collect_lazy_values.append(db_dict.get(field.db_field_name, None))
+                    obj.__dict__[field_name] = LazyField(collect_lazy_values, reference)
             else:
                 new_dict[field_name] = value
         return cls(**new_dict, date_from_db_raw=db_dict)
