@@ -45,7 +45,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
                                                     LazyField) and field_obj.reference and not self._is_type_or_list_type(
                 value, BaseData):
                 value = LazyField(value, field_obj.reference)
-            setattr(self, field_name, value)
+            self.__dict__[field_name] = value
 
         # self.validate_types()
 
@@ -55,10 +55,10 @@ class BaseData[K: tuple](metaclass=ModelMeta):
 
     def __str__(self):
         pks = get_elements_as_list(self._meta.primary_keys, lambda x: x.field_name)
-        pk_values = ', '.join(f"{k.field_name}={getattr(self, k.field_name)}" for k in self._meta.primary_keys)
+        pk_values = ', '.join(f"{k.field_name}={self.__dict__[k.field_name]}" for k in self._meta.primary_keys)
 
         field_values = ', '.join(
-            f"{k}={getattr(self, k)}" for k in self._meta.fields.keys() if k not in pks)
+            f"{k}={self.get_db_value(k)}" for k in self._meta.fields.keys() if k not in pks)
 
         return f"{self.__class__.__name__}(Pk[{pk_values}], {field_values})"
 
@@ -90,8 +90,6 @@ class BaseData[K: tuple](metaclass=ModelMeta):
             if reference and value is not None:
                 if isinstance(value, BaseData):
                     obj.__dict__[field_name] = value.copy()  # make copy because AbstractTable can often bulk-loads references
-                elif isinstance(value, dict):
-                    obj.__dict__[field_obj.field_name] = reference.dataclass.from_db_dict(value)
                 elif isinstance(value, list):
                     if len(value) == 0:
                         obj.__dict__[field_name] = []
@@ -99,14 +97,16 @@ class BaseData[K: tuple](metaclass=ModelMeta):
                         obj.__dict__[field_name] = [item.copy() for item in value]
                     else:
                         obj.__dict__[field_name] = [reference.dataclass.from_db_dict(item) for item in value]
+                elif isinstance(value, dict):
+                    obj.__dict__[field_obj.field_name] = reference.dataclass.from_db_dict(value)
                 else:
                     collect_lazy_values = []
                     for field in get_elements_as_list(cls.meta().fields[field_name]):
                         collect_lazy_values.append(db_dict.get(field.db_field_name, None))
                     obj.__dict__[field_name] = LazyField(collect_lazy_values, reference)
             else:
-                new_dict[field_name] = value
-        return cls(**new_dict, date_from_db_raw=db_dict)
+                obj.__dict__[field_name] = value
+        return obj
 
     @staticmethod
     def _is_type_or_list_type(value: Any, expected_type: Any) -> bool:
@@ -149,7 +149,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         """
         Returns the primary key of the object.
         """
-        return tuple(getattr(self, field.field_name) for field in self._meta.primary_keys)
+        return tuple(self.__dict__[field.field_name] for field in self._meta.primary_keys)
 
     @property
     def pk(self) -> K:
@@ -177,7 +177,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         """
         if db_colum not in self._meta.db_columns:
             raise ValueError(f"Column {db_colum} not found in meta information")
-        return getattr(self, self._meta.db_columns[db_colum].field_name)
+        return self.__dict__[self._meta.db_columns[db_colum].field_name]
 
     def get_db_value(self, attribute: str) -> tuple[Any, ...]:
         """
