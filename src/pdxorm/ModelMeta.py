@@ -13,6 +13,11 @@ class MetaInformation:
     one_to_many_fields: dict[str, DBColumn]  # Map from {model_attr: Field_instance}
     auto_generated_fields: list[DBColumn]  # List of auto generated fields
 
+    fields_without_lists: dict[str, DBColumn] = None  # noqa
+
+    def __post_init__(self):
+        self.fields_without_lists = {key: item[0] if isinstance(item, list) else item for key, item in self.fields.items()}
+
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(DBColumn,))
 class ModelMeta(type):
