@@ -30,8 +30,10 @@ class SqliteDBResult(DBResult):
         Returns:
             list[dict]: A list of dictionaries with the column names as keys and the values of the row as values.
         """
+
         result = self._result.fetchall()
-        return [dict(zip([col[0] for col in self._result.description], row)) for row in result]
+        cols = [col[0] for col in self._result.description]
+        return [dict(zip(cols, row)) for row in result]
 
     @property
     def to_item(self) -> Any | None:
