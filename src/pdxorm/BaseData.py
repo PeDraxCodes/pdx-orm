@@ -4,7 +4,7 @@ from typing import Any, dataclass_transform
 
 from .DBColumn import DBColumn
 from .ModelMeta import MetaInformation, ModelMeta
-from .utils import get_as_tuple, get_elements_as_list, get_first_or_element
+from .utils import get_as_tuple, get_elements_as_list
 
 
 class LazyField:
@@ -27,8 +27,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         self._data = kwargs.get("date_from_db_raw", None)  # Raw-Data from db if given
         self._loaded_from_db = False  # Flag, ob das Objekt aus der DB kommt
 
-        for field_name, field_obj in self._meta.fields.items():
-            field_obj = get_first_or_element(field_obj)
+        for field_name, field_obj in self._meta.fields_without_lists.items():
             # Setze Standardwerte oder übergebene Werte
             if isinstance(field_obj, list):
                 default_value = None
@@ -115,7 +114,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         Check if the value is of the expected type or a list of the expected type.
         """
         if isinstance(value, list):
-            return all(isinstance(item, expected_type) for item in value)
+            return isinstance(value[0], expected_type) if len(value) > 0 else True  # expect the list to have the same type
         return isinstance(value, expected_type)
 
     def validate_types(self):
