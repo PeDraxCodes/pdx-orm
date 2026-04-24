@@ -259,4 +259,12 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         """
         Returns a copy of the object.
         """
-        return self.__class__(**self.as_dict(), date_from_db_raw=self._data)
+        new_obj = self.__class__.__new__(self.__class__)
+        new_obj.__dict__ = self.__dict__.copy()
+        for key, value in new_obj.__dict__.items():
+            if isinstance(value, BaseData):
+                new_obj.__dict__[key] = value.copy()
+            elif isinstance(value, list):
+                new_obj.__dict__[key] = [v.copy() if isinstance(v, BaseData) else v for v in value]
+
+        return new_obj
