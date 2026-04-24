@@ -12,6 +12,13 @@ class LazyField:
         self.db_values = db_values
         self.reference = reference
 
+    def __get__(self, instance, owner):
+        raise AttributeError("This field is not loaded yet. Please load it from the database first.")
+
+    def __set__(self, instance, value):
+        # This prevents instance.__dict__ from shadowing __get__.
+        pass
+
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(DBColumn,))
 class BaseData[K: tuple](metaclass=ModelMeta):
@@ -65,13 +72,6 @@ class BaseData[K: tuple](metaclass=ModelMeta):
             if self.get_db_value(field_name) != other.get_db_value(field_name):
                 return False
         return True
-
-    def __getattribute__(self, name: str) -> Any:
-        value = object.__getattribute__(self, name)
-        if isinstance(value, LazyField):
-            # calculate LAZY fetch
-            raise AttributeError("This field is not loaded yet. Please load it from the database first.")
-        return value
 
     def __hash__(self):
         return hash((self.__class__, self.pk))
