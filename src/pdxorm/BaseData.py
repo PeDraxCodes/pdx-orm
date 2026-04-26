@@ -15,10 +15,6 @@ class LazyField:
     def __get__(self, instance, owner):
         raise AttributeError("This field is not loaded yet. Please load it from the database first.")
 
-    def __set__(self, instance, value):
-        # This prevents instance.__dict__ from shadowing __get__.
-        pass
-
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(DBColumn,))
 class BaseData[K: tuple](metaclass=ModelMeta):
@@ -26,6 +22,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         self._meta: MetaInformation = self.__class__._meta  # Zugriff auf die Metadaten der Klasse
         self._data = kwargs.get("date_from_db_raw", None)  # Raw-Data from db if given
         self._loaded_from_db = False  # Flag, ob das Objekt aus der DB kommt
+        self._lazy_fields = {}
 
         for field_name, field_obj in self._meta.fields_without_lists.items():
             # Setze Standardwerte oder übergebene Werte
@@ -45,6 +42,8 @@ class BaseData[K: tuple](metaclass=ModelMeta):
                                                     LazyField) and field_obj.reference and not self._is_type_or_list_type(
                 value, BaseData):
                 value = LazyField(value, field_obj.reference)
+                self._lazy_fields[field_name] = value
+                continue  # don't set the value yet, because it is lazy loaded
             self.__dict__[field_name] = value
 
         # self.validate_types()
@@ -75,6 +74,13 @@ class BaseData[K: tuple](metaclass=ModelMeta):
     def __hash__(self):
         return hash((self.__class__, self.pk))
 
+    def __getattr__(self, name: str) -> Any:
+        # This only runs if 'name' wasn't found in self.__dict__
+        if name in self._lazy_fields:
+            raise AttributeError(f"The field '{name}' is not loaded yet. Please load it from the database first.")
+
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+
     @classmethod
     def from_db_dict(cls, db_dict: dict) -> "BaseData":
         """
@@ -83,6 +89,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         """
         obj = cls.__new__(cls)
         obj._loaded_from_db = True
+        obj._lazy_fields = {}
         for field_name, field_obj in cls.meta().fields_without_lists.items():
             value = db_dict.get(field_obj.db_field_name, field_obj.default_value)
             reference = field_obj.reference
@@ -102,8 +109,8 @@ class BaseData[K: tuple](metaclass=ModelMeta):
                 else:
                     collect_lazy_values = []
                     for field in get_elements_as_list(cls.meta().fields[field_name]):
-                        collect_lazy_values.append(db_dict.get(field.db_field_name, None))
-                    obj.__dict__[field_name] = LazyField(collect_lazy_values, reference)
+                        collect_lazy_values.append(db_dict[field.db_field_name])
+                    obj.__dict__["_lazy_fields"][field_obj.field_name] = LazyField(collect_lazy_values, reference)
             else:
                 obj.__dict__[field_name] = value
         return obj
