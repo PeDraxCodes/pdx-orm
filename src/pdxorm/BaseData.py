@@ -52,7 +52,7 @@ class BaseData[K: tuple](metaclass=ModelMeta):
         pk_values = ', '.join(f"{k.field_name}={getattr(self, k.field_name)}" for k in self._meta.primary_keys)
 
         field_values = ', '.join(
-            f"{k}={getattr(self, k)}" for k in self._meta.fields.keys() if k not in pks)
+            f"{k}={self.get_db_value(k)}" for k in self._meta.fields.keys() if k not in pks)
 
         return f"{self.__class__.__name__}(Pk[{pk_values}], {field_values})"
 
